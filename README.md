@@ -1,198 +1,115 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Morrow Supply
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Morrow Supply is a demo e-commerce application with a NestJS API, PostgreSQL database managed by Prisma, and a small Next.js storefront.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Included
 
-## Description
+- JWT registration, login, and profile endpoint
+- Public catalogue with categories, search, price filters, sorting, and pagination
+- Authenticated cart, address book, checkout, and customer order history
+- Admin APIs for catalogue management, images, variants, inventory adjustments, and order status changes
+- Health check, rate limiting, environment validation, and Swagger UI
+- Next.js demo storefront for browsing, authentication, cart management, and checkout
 
-Morrow Supply is a small e-commerce starter with a NestJS API, Prisma/Postgres
-database, and Next.js storefront.
+Prices are stored as integer minor units. The default currency is INR; for example, `4800` represents ₹48.00.
+
+## Tech stack
+
+- API: NestJS, TypeScript, Prisma, PostgreSQL
+- Storefront: Next.js and React
+- Authentication: bcrypt and JWT bearer tokens
+- Local database: Docker Compose / PostgreSQL 16
 
 ## Run locally
 
-```bash
-# install API dependencies
-npm install
+Requirements: Node.js, npm, Docker, and Docker Compose.
 
-# start Postgres, apply tracked migrations, and load sample catalogue data
-npm run db:up
+```bash
+# API dependencies and configuration
+npm install
 cp .env.example .env
+
+# Start Postgres, apply versioned migrations, and seed the catalogue
+npm run db:up
 npm run db:migrate
 npm run db:seed
 
-# in one terminal
+# Start the API at http://localhost:3000
 npm run start:dev
+```
 
-# in another terminal
+In a second terminal:
+
+```bash
 cd frontend
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-The API runs at `http://localhost:3000` and the storefront at
-`http://localhost:3001`.
+Open the storefront at `http://localhost:3001`. Swagger documentation is available at `http://localhost:3000/docs` and the health check at `http://localhost:3000/health`.
 
-### API routes
+Change `JWT_SECRET` in `.env` before using the application outside local development. `NEXT_PUBLIC_API_URL` in `frontend/.env.local` defaults to `http://localhost:3000`.
 
-- `POST /auth/register` and `POST /auth/login`
-- `GET /users/me` with a bearer token
-- `GET /categories` and `GET /categories/:slug`
-- `GET /products?search=mug&category=home&minPrice=1000&maxPrice=5000&sort=price_asc&page=1&limit=20`
-- `GET /products/:idOrSlug`
-- `GET /cart`, `POST /cart/items`, `PATCH /cart/items/:itemId`, `DELETE /cart/items/:itemId`, `DELETE /cart` (bearer token)
-- `GET /addresses`, `POST /addresses`, `PATCH /addresses/:id`, `DELETE /addresses/:id` (bearer token)
-- `POST /checkout`, `GET /orders`, and `GET /orders/:id` (bearer token)
-- `GET /health` and `GET /docs`
+## API overview
 
-Admin routes require a bearer token for a user whose role is `ADMIN`:
+| Area | Routes |
+| --- | --- |
+| Auth | `POST /auth/register`, `POST /auth/login`, `GET /users/me` |
+| Catalogue | `GET /categories`, `GET /categories/:slug`, `GET /products`, `GET /products/:idOrSlug` |
+| Cart | `GET /cart`, `POST /cart/items`, `PATCH /cart/items/:itemId`, `DELETE /cart/items/:itemId`, `DELETE /cart` |
+| Addresses | `GET /addresses`, `POST /addresses`, `PATCH /addresses/:id`, `DELETE /addresses/:id` |
+| Orders | `POST /checkout`, `GET /orders`, `GET /orders/:id` |
+| Operations | `GET /health`, `GET /docs` |
 
-- `GET/POST/PATCH/DELETE /admin/categories...`
-- `GET/POST/PATCH/DELETE /admin/products...`
-- `POST/DELETE /admin/products/:productId/images...`
-- `POST/PATCH/DELETE /admin/products/:productId/variants...`
-- `POST /admin/products/:productId/inventory`
-- `GET /admin/orders?status=PROCESSING&paymentStatus=PAID`
-- `PATCH /admin/orders/:id/status`
+Catalogue filtering example:
 
-Order status changes are limited to valid transitions. Product deletion is a soft delete, and inventory adjustments create an audit record in the same database transaction as the stock change.
-
-Public product responses contain only active and published products. Prices and all order totals are integer minor units in the product/order currency, defaulting to INR. Cart and order queries are scoped to the authenticated user.
-
-### Postman examples
-
-Register and save the returned `accessToken`:
-
-```http
-POST http://localhost:3000/auth/register
-Content-Type: application/json
-
-{"name":"Asha","email":"asha@example.com","password":"password123"}
+```text
+GET /products?search=mug&category=home&minPrice=1000&maxPrice=5000&sort=price_asc&page=1&limit=20
 ```
 
-Add an address, add a product to the cart, then checkout:
+Cart, addresses, checkout, and orders require `Authorization: Bearer <accessToken>`.
 
-```http
-POST http://localhost:3000/addresses
-Authorization: Bearer {{accessToken}}
-Content-Type: application/json
+## Admin access
 
-{"label":"Home","recipientName":"Asha","line1":"1 Main Street","city":"Pune","state":"MH","postalCode":"411001","country":"IN"}
+All `/admin/*` routes require a JWT for a user with the `ADMIN` role. The admin API supports category and product CRUD, image and variant management, inventory adjustments, order listing, and valid order-status transitions.
 
-POST http://localhost:3000/cart/items
-Authorization: Bearer {{accessToken}}
-Content-Type: application/json
+There is no admin-registration endpoint. For local development, promote an existing user directly in Postgres:
 
-{"productId":"{{productId}}","quantity":2}
-
-POST http://localhost:3000/checkout
-Authorization: Bearer {{accessToken}}
-Content-Type: application/json
-
-{"shippingAddressId":"{{addressId}}"}
+```sql
+UPDATE "User" SET role = 'ADMIN' WHERE email = 'admin@example.com';
 ```
 
-## Project setup
+Then log in again to receive a token containing the new role.
+
+## Testing and builds
 
 ```bash
-$ npm install
+# API checks
+npm run lint
+npm run build
+npm test
+npm run test:e2e
+
+# Storefront production build
+cd frontend && npm run build
 ```
 
-## Compile and run the project
+## Current demo limitations
+
+- Payment processing, shipping, tax calculation, refunds, and transactional email are not implemented.
+- Product variants can be managed by admins but are not yet selectable in the cart or checkout.
+- Checkout needs idempotency/cart locking before production use to prevent duplicate concurrent orders.
+- Inventory should be changed through the dedicated adjustment endpoint to keep an audit trail.
+- The storefront is intentionally basic and does not include account, order-history, search/filter, or admin screens.
+
+## Database commands
+
+Use migrations for schema changes:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npx prisma migrate dev --name describe_the_change
+npx prisma generate
 ```
 
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Do not use `prisma db push` as the normal schema workflow. Keep `prisma/migrations` committed.

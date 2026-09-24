@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+.pnp
+.pnp.js
+
+# Build output and generated files
+dist/
+build/
+.next/
+out/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Prisma local-development database files (keep prisma/migrations tracked)
+prisma/*.db
+prisma/*.db-journal
+
+# Logs and runtime files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+pids/
+*.pid
+*.pid.lock
+*.seed
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Caches and temporary files
+.cache/
+.turbo/
+.temp/
+.tmp/
+tmp/
+
+# Deployment and local tooling state
+.vercel/
+.netlify/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.iml
+*.sublime-workspace
+*.sublime-project
+.project
+.classpath
+.settings/
+.c9/
+*.launch

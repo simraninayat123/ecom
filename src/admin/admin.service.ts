@@ -1,11 +1,12 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InventoryAdjustmentType, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AdminOrderQueryDto, CategoryAdminDto, InventoryAdjustmentDto, ProductAdminDto, ProductImageDto, ProductVariantDto } from './admin.types.js';
+import { ProductIndexService } from '../rag/product-index.service.js';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly productIndexService?: ProductIndexService) {}
 
   listCategories() { return this.prisma.category.findMany({ orderBy: { name: 'asc' }, include: { _count: { select: { products: true } } } }); }
   createCategory(data: CategoryAdminDto) { return this.prisma.category.create({ data }); }
@@ -17,12 +18,30 @@ export class AdminService {
   }
 
   listProducts() { return this.prisma.product.findMany({ orderBy: { createdAt: 'desc' }, include: { category: true, images: { orderBy: { sortOrder: 'asc' } }, variants: true } }); }
-  createProduct(data: ProductAdminDto) { return this.prisma.product.create({ data, include: { category: true, images: true, variants: true } }); }
+  createProduct(data: ProductAdminDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.create({ data, include: { category: true, images: true, variants: true } });
+      await this.productIndexService?.enqueue(tx, product.id, 'UPSERT');
+      return product;
+    });
+  }
   async updateProduct(id: string, data: Partial<ProductAdminDto>) {
-    try { return await this.prisma.product.update({ where: { id }, data, include: { category: true, images: true, variants: true } }); } catch (error) { this.throwNotFoundOrConflict(error, 'Product not found'); }
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const product = await tx.product.update({ where: { id }, data, include: { category: true, images: true, variants: true } });
+        await this.productIndexService?.enqueue(tx, product.id, 'UPSERT');
+        return product;
+      });
+    } catch (error) { this.throwNotFoundOrConflict(error, 'Product not found'); }
   }
   async deleteProduct(id: string) {
-    try { await this.prisma.product.update({ where: { id }, data: { active: false, published: false } }); return { deleted: true }; } catch (error) { this.throwNotFoundOrConflict(error, 'Product not found'); }
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.product.update({ where: { id }, data: { active: false, published: false } });
+        await this.productIndexService?.enqueue(tx, id, 'DELETE');
+      });
+      return { deleted: true };
+    } catch (error) { this.throwNotFoundOrConflict(error, 'Product not found'); }
   }
 
   async addImage(productId: string, data: ProductImageDto) {

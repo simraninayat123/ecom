@@ -19,6 +19,31 @@ export type CartItem = {
 
 export type Cart = { id: string; items: CartItem[]; subtotal: number; currency: string };
 
+export type RecommendationProduct = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  price: number;
+  currency: string;
+  imageUrl: string;
+  stock: number;
+  category?: { name: string; slug: string } | null;
+  similarity?: number;
+};
+
+export type RecommendationResponse = {
+  answer: string;
+  products: RecommendationProduct[];
+};
+
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export function formatMoney(amount: number, currency = 'INR') {
@@ -33,11 +58,18 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     const message = Array.isArray(body?.message) ? body.message.join(', ') : body?.message;
-    throw new Error(message ?? `Request failed (${response.status})`);
+    throw new ApiError(message ?? `Request failed (${response.status})`, response.status);
   }
   return response.json() as Promise<T>;
 }
 
 export async function getProducts() {
   return api<{ data: Product[] }>('/products?limit=24');
+}
+
+export function getProductRecommendations(query: string, limit = 5) {
+  return api<RecommendationResponse>('/rag/recommendations', {
+    method: 'POST',
+    body: JSON.stringify({ query, limit }),
+  });
 }

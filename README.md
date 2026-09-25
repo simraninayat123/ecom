@@ -15,14 +15,14 @@ Prices are stored as integer minor units. The default currency is INR; for examp
 
 ## Tech stack
 
-- API: NestJS, TypeScript, Prisma, PostgreSQL
+- API: NestJS, TypeScript, Prisma, PostgreSQL, pgvector
 - Storefront: Next.js and React
 - Authentication: bcrypt and JWT bearer tokens
 - Local database: Docker Compose / PostgreSQL 16
 
 ## Run locally
 
-Requirements: Node.js, npm, Docker, and Docker Compose.
+Requirements: Node.js, npm, Docker, and Docker Compose. PostgreSQL runs from the `pgvector/pgvector:pg16` image so the vector extension is available locally.
 
 ```bash
 # API dependencies and configuration
@@ -51,6 +51,52 @@ Open the storefront at `http://localhost:3001`. Swagger documentation is availab
 
 Change `JWT_SECRET` in `.env` before using the application outside local development. `NEXT_PUBLIC_API_URL` in `frontend/.env.local` defaults to `http://localhost:3000`.
 
+### RAG recommendations
+
+The recommendation API uses Hugging Face hosted inference for embeddings with
+`BAAI/bge-small-en-v1.5` (384 dimensions) and pgvector for cosine similarity.
+Set the following in `.env` to enable it:
+
+```env
+HF_TOKEN="your-hugging-face-token"
+HF_EMBEDDING_MODEL="BAAI/bge-small-en-v1.5"
+HF_EMBEDDING_PROVIDER="hf-inference"
+RAG_INDEXING_INTERVAL_MS=5000
+RAG_RETRIEVAL_LIMIT=5
+RAG_MIN_SIMILARITY=0.35
+```
+
+Create a Hugging Face access token with permission to use Inference Providers
+from your Hugging Face account settings. The token stays on the API server and
+must never be exposed to the frontend. Hosted inference is subject to Hugging
+Face account credits and provider rate limits even though the embedding model
+is open source.
+
+Product creates, updates, and deactivations made through the admin API enqueue
+one durable Postgres indexing job per product. The NestJS worker claims jobs
+with row locks, embeds the latest canonical product document, and upserts the
+pgvector record. Failed provider calls retry with exponential backoff and then
+become visible as terminal failures.
+
+```http
+POST /rag/recommendations
+Content-Type: application/json
+
+{"query":"I need a warm blanket for cool evenings","limit":5}
+```
+
+Admin indexing operations require an `ADMIN` bearer token:
+
+```http
+GET /admin/rag/indexing-status
+POST /admin/rag/reindex
+Authorization: Bearer <adminAccessToken>
+```
+
+`reindex` only queues work; it does not make Hugging Face requests during the
+HTTP request. A missing `HF_TOKEN` returns `503` when recommendations or a
+worker job needs embeddings.
+
 ## API overview
 
 | Area | Routes |
@@ -60,6 +106,8 @@ Change `JWT_SECRET` in `.env` before using the application outside local develop
 | Cart | `GET /cart`, `POST /cart/items`, `PATCH /cart/items/:itemId`, `DELETE /cart/items/:itemId`, `DELETE /cart` |
 | Addresses | `GET /addresses`, `POST /addresses`, `PATCH /addresses/:id`, `DELETE /addresses/:id` |
 | Orders | `POST /checkout`, `GET /orders`, `GET /orders/:id` |
+| Recommendations | `POST /rag/recommendations` |
+| Admin RAG | `GET /admin/rag/indexing-status`, `POST /admin/rag/reindex` |
 | Operations | `GET /health`, `GET /docs` |
 
 Catalogue filtering example:

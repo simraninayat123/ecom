@@ -13,6 +13,7 @@ import Joi from 'joi';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { HealthModule } from './health/health.module.js';
+import { RagModule } from './rag/rag.module.js';
 
 @Module({
   imports: [
@@ -27,6 +28,12 @@ import { HealthModule } from './health/health.module.js';
         NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
         RATE_LIMIT_TTL_MS: Joi.number().positive().default(60000),
         RATE_LIMIT_MAX: Joi.number().positive().default(100),
+        HF_TOKEN: Joi.string().allow('').optional(),
+        HF_EMBEDDING_MODEL: Joi.string().default('BAAI/bge-small-en-v1.5'),
+        HF_EMBEDDING_PROVIDER: Joi.string().valid('hf-inference').default('hf-inference'),
+        RAG_INDEXING_INTERVAL_MS: Joi.number().positive().default(5000),
+        RAG_RETRIEVAL_LIMIT: Joi.number().integer().min(1).max(10).default(5),
+        RAG_MIN_SIMILARITY: Joi.number().min(-1).max(1).default(0.35),
       }),
     }),
     ThrottlerModule.forRootAsync({ imports: [ConfigModule], inject: [ConfigService], useFactory: (config: ConfigService) => [{ ttl: config.getOrThrow<number>('RATE_LIMIT_TTL_MS'), limit: config.getOrThrow<number>('RATE_LIMIT_MAX') }] }),
@@ -38,6 +45,7 @@ import { HealthModule } from './health/health.module.js';
     ProductsModule,
     OrdersModule,
     HealthModule,
+    RagModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

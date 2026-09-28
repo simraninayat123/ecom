@@ -37,6 +37,46 @@ export type RecommendationResponse = {
   products: RecommendationProduct[];
 };
 
+export type AdminCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  _count?: { products: number };
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type AdminProductImage = { id: string; productId: string; url: string; altText?: string | null; sortOrder: number };
+export type AdminProductVariant = { id: string; productId: string; name: string; sku: string; options: Record<string, unknown>; priceOverride?: number | null; stock: number; active: boolean };
+export type AdminProduct = {
+  id: string;
+  name: string;
+  slug: string;
+  sku: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  stock: number;
+  active: boolean;
+  published: boolean;
+  currency: string;
+  category?: AdminCategory | null;
+  categoryId?: string | null;
+  images?: AdminProductImage[];
+  variants?: AdminProductVariant[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InventoryAdjustmentInput = { type: 'INCREASE' | 'DECREASE' | 'SET'; quantity: number; reason: string };
+export type AdminIndexingFailedJob = { id: string; productId: string; attempts: number; lastError?: string | null; updatedAt: string };
+export type AdminIndexingStatus = {
+  counts: Partial<Record<'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED', number>>;
+  failedJobs: AdminIndexingFailedJob[];
+  latestSuccessfulEmbeddingAt?: string | null;
+};
+
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
@@ -61,6 +101,11 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
     throw new ApiError(message ?? `Request failed (${response.status})`, response.status);
   }
   return response.json() as Promise<T>;
+}
+
+export async function adminApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = typeof window === 'undefined' ? null : window.localStorage.getItem('morrow_access_token');
+  return api<T>(path, options, token);
 }
 
 export async function getProducts() {

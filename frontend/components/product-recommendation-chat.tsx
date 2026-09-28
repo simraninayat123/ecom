@@ -116,7 +116,7 @@ export function ProductRecommendationChat() {
     <>
       {open && <div className="recommendation-panel" ref={panelRef} role="dialog" aria-modal="false" aria-labelledby="recommendation-title">
         <header className="recommendation-header">
-          <div><h2 id="recommendation-title">Product Assistant</h2><p>Tell me what you're looking for</p></div>
+          <div><h2 id="recommendation-title">Product Assistant</h2><p>Tell me what you&apos;re looking for</p></div>
           <button type="button" className="recommendation-close" aria-label="Close product recommendation chat" onClick={() => setOpen(false)}>×</button>
         </header>
         <div className="recommendation-messages" ref={messagesRef} aria-live="polite">

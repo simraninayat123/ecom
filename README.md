@@ -97,6 +97,59 @@ Authorization: Bearer <adminAccessToken>
 HTTP request. A missing `HF_TOKEN` returns `503` when recommendations or a
 worker job needs embeddings.
 
+#### LLM answers (OpenRouter)
+
+After retrieval, the top matching products are sent to an LLM through
+[OpenRouter](https://openrouter.ai) to write a conversational answer grounded
+only in those catalog entries. Set the following in `.env`:
+
+```env
+OPENROUTER_API_KEY="your-openrouter-key"
+OPENROUTER_MODEL="openai/gpt-4.1-mini,google/gemini-2.5-flash,openai/gpt-4.1-nano"
+OPENROUTER_TIMEOUT_MS=20000
+```
+
+`OPENROUTER_MODEL` is a comma-separated list: OpenRouter tries the first model
+and falls back to the next ones if it is rate-limited or unavailable. Free models
+(ending in `:free`) also work, but they have low rate limits and their
+availability changes. The defaults are low-cost paid models (roughly $0.002 per
+assistant turn), which need OpenRouter credits but are far more reliable.
+
+If the key is missing, the model errors, or it times out, the API falls
+back to a template answer built from the top product, so recommendations keep
+working. The response's `answerSource` field is `llm` or `template` to show
+which path produced the answer.
+
+#### Shopping assistant with tools
+
+The storefront chat widget calls `POST /rag/chat`, an agent loop where the LLM
+calls tools to answer from live data:
+
+| Tool | Sign-in | Purpose |
+| --- | --- | --- |
+| `search_products` | No | Semantic search with optional price (in rupees), category and stock filters |
+| `get_product_details`, `compare_products` | No | Details, variants and stock for one or several products |
+| `similar_products` | No | Nearest neighbours of a product, optionally only cheaper ones |
+| `list_categories` | No | Categories and product counts |
+| `list_my_orders`, `get_order_details` | Yes | The shopper's orders: status, dates, items, amounts, shipping address |
+| `view_cart`, `add_to_cart`, `update_cart_item` | Yes | Read and change the shopper's cart |
+
+```http
+POST /rag/chat
+Authorization: Bearer <accessToken>   (optional)
+Content-Type: application/json
+
+{"message":"where's my latest order?","history":[{"role":"user","content":"..."},{"role":"assistant","content":"..."}]}
+```
+
+The response contains `answer`, product cards (`products`), order cards
+(`orders`), `cartUpdated`, and `answerSource`. The bearer token is optional:
+without it, order and cart tools reply that the shopper must sign in. Tools
+always use the user id from the token, never from the model, so a prompt cannot
+read another shopper's orders. Each turn is capped at five LLM calls, and the
+first call must use a tool so answers come from fresh data. Payment and refund
+data is not modelled yet, so the assistant says it cannot see it.
+
 ## API overview
 
 | Area | Routes |
@@ -106,7 +159,7 @@ worker job needs embeddings.
 | Cart | `GET /cart`, `POST /cart/items`, `PATCH /cart/items/:itemId`, `DELETE /cart/items/:itemId`, `DELETE /cart` |
 | Addresses | `GET /addresses`, `POST /addresses`, `PATCH /addresses/:id`, `DELETE /addresses/:id` |
 | Orders | `POST /checkout`, `GET /orders`, `GET /orders/:id` |
-| Recommendations | `POST /rag/recommendations` |
+| Recommendations | `POST /rag/recommendations`, `POST /rag/chat` |
 | Admin RAG | `GET /admin/rag/indexing-status`, `POST /admin/rag/reindex` |
 | Operations | `GET /health`, `GET /docs` |
 

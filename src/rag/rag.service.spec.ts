@@ -2,11 +2,14 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AdminService } from '../admin/admin.service.js';
 import { EmbeddingService } from './embedding.service.js';
+import { buildCatalogContext, GenerationService } from './generation.service.js';
 import { IndexingWorkerService } from './indexing-worker.service.js';
 import { buildProductDocument } from './product-index.service.js';
 import { RagService } from './rag.service.js';
 
 const config = { get: vi.fn((key: string) => ({ RAG_RETRIEVAL_LIMIT: 5, RAG_MIN_SIMILARITY: 0.35 } as Record<string, unknown>)[key]) } as unknown as ConfigService;
+
+const noGeneration = { generateAnswer: vi.fn().mockResolvedValue(null) } as unknown as GenerationService;
 
 describe('RAG product recommendations', () => {
   it('builds a canonical document with recommendation facts', () => {
@@ -35,7 +38,7 @@ describe('RAG product recommendations', () => {
   it('maps only current active and published product cards', async () => {
     const embeddings = { embed: vi.fn().mockResolvedValue([[...Array(384).fill(0.1)]]) };
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([{ productId: 'active', similarity: 0.82 }, { productId: 'hidden', similarity: 0.8 }]), product: { findMany: vi.fn().mockResolvedValue([{ id: 'active', name: 'Throw', slug: 'throw', description: 'Soft merino wool.', price: 9200, currency: 'INR', imageUrl: 'image', stock: 2, category: { name: 'Home', slug: 'home' } }]) } };
-    const result = await new RagService(prisma as never, embeddings as never, config).recommend('warm blanket');
+    const result = await new RagService(prisma as never, embeddings as never, config, noGeneration).recommend('warm blanket');
     expect(result.products).toHaveLength(1);
     expect(result.products[0].id).toBe('active');
     expect(prisma.product.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ active: true, published: true }) }));
@@ -44,7 +47,7 @@ describe('RAG product recommendations', () => {
   it('returns a grounded no-match response', async () => {
     const prisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
     const embeddings = { embed: vi.fn().mockResolvedValue([[...Array(384).fill(0.1)]]) };
-    const result = await new RagService(prisma as never, embeddings as never, config).recommend('something unavailable');
+    const result = await new RagService(prisma as never, embeddings as never, config, noGeneration).recommend('something unavailable');
     expect(result.products).toEqual([]);
     expect(result.answer).toContain('confident match');
   });
@@ -79,5 +82,80 @@ describe('RAG product recommendations', () => {
     const worker = new IndexingWorkerService(prisma as never, { embed: vi.fn().mockRejectedValue(new Error('failure')) } as never, { buildDocumentFromProduct: vi.fn().mockReturnValue('doc') } as never);
     await worker.processNext();
     expect(prisma.productIndexJob.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED', attempts: 5 }) }));
+  });
+
+  describe('LLM answer generation', () => {
+    const product = { id: 'active', name: 'Throw', slug: 'throw', description: 'Soft merino wool.', price: 9200, currency: 'INR', imageUrl: 'image', stock: 2, category: { name: 'Home', slug: 'home' } };
+    const retrieval = () => ({
+      $queryRaw: vi.fn().mockResolvedValue([{ productId: 'active', similarity: 0.82 }]),
+      product: { findMany: vi.fn().mockResolvedValue([product]) },
+    });
+    const embeddings = { embed: vi.fn().mockResolvedValue([[...Array(384).fill(0.1)]]) };
+    const generationConfig = (values: Record<string, unknown>) => ({ get: vi.fn((key: string) => values[key]) }) as unknown as ConfigService;
+
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('uses the generated answer when the LLM responds', async () => {
+      const generation = { generateAnswer: vi.fn().mockResolvedValue('The Throw is a cosy pick.') } as unknown as GenerationService;
+      const result = await new RagService(retrieval() as never, embeddings as never, config, generation).recommend('  warm blanket ');
+      expect(result).toMatchObject({ answer: 'The Throw is a cosy pick.', answerSource: 'llm' });
+      expect(generation.generateAnswer).toHaveBeenCalledWith('warm blanket', [expect.objectContaining({ id: 'active' })]);
+    });
+
+    it('falls back to the template answer when generation is unavailable', async () => {
+      const result = await new RagService(retrieval() as never, embeddings as never, config, noGeneration).recommend('warm blanket');
+      expect(result.answerSource).toBe('template');
+      expect(result.answer).toContain('Throw is a strong match');
+    });
+
+    it('grounds the prompt in formatted catalog entries', () => {
+      const context = buildCatalogContext([{ ...product, similarity: 0.8 }]);
+      expect(context).toContain('[1] Throw');
+      expect(context).toContain('Category: Home');
+      expect(context).toContain('₹92');
+      expect(context).toContain('Availability: In stock');
+    });
+
+    it('skips the request when no API key is configured', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const generation = new GenerationService(generationConfig({}));
+      await expect(generation.generateAnswer('warm blanket', [{ ...product, similarity: 0.8 }])).resolves.toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('calls OpenRouter with the configured model and returns the answer', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: ' Try the Throw. ' } }] }) });
+      vi.stubGlobal('fetch', fetchMock);
+      const generation = new GenerationService(generationConfig({ OPENROUTER_API_KEY: 'key', OPENROUTER_MODEL: 'test/model:free' }));
+      await expect(generation.generateAnswer('warm blanket', [{ ...product, similarity: 0.8 }])).resolves.toBe('Try the Throw.');
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
+      expect(init.headers.Authorization).toBe('Bearer key');
+      expect(JSON.parse(init.body).model).toBe('test/model:free');
+      expect(JSON.parse(init.body).models).toBeUndefined();
+    });
+
+    it('sends extra configured models as OpenRouter fallbacks', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: 'Try the Throw.' } }] }) });
+      vi.stubGlobal('fetch', fetchMock);
+      const generation = new GenerationService(generationConfig({ OPENROUTER_API_KEY: 'key', OPENROUTER_MODEL: 'a/one:free, b/two:free' }));
+      await generation.generateAnswer('warm blanket', [{ ...product, similarity: 0.8 }]);
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.model).toBe('a/one:free');
+      expect(body.models).toEqual(['a/one:free', 'b/two:free']);
+    });
+
+    it('rejects answers cut off by the token limit', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ finish_reason: 'length', message: { content: 'We need to recommend' } }] }) }));
+      const generation = new GenerationService(generationConfig({ OPENROUTER_API_KEY: 'key' }));
+      await expect(generation.generateAnswer('warm blanket', [{ ...product, similarity: 0.8 }])).resolves.toBeNull();
+    });
+
+    it('returns null instead of throwing when OpenRouter fails', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 429, text: async () => 'rate limited' }));
+      const generation = new GenerationService(generationConfig({ OPENROUTER_API_KEY: 'key' }));
+      await expect(generation.generateAnswer('warm blanket', [{ ...product, similarity: 0.8 }])).resolves.toBeNull();
+    });
   });
 });

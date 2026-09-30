@@ -35,6 +35,29 @@ export type RecommendationProduct = {
 export type RecommendationResponse = {
   answer: string;
   products: RecommendationProduct[];
+  answerSource?: 'llm' | 'template';
+};
+
+export type OrderCard = {
+  id: string;
+  reference: string;
+  placedAt: string;
+  updatedAt: string;
+  status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+  statusLabel: string;
+  total: number;
+  currency: string;
+  items: Array<{ name: string; quantity: number }>;
+};
+
+export type AssistantHistoryMessage = { role: 'user' | 'assistant'; content: string };
+
+export type AssistantResponse = {
+  answer: string;
+  products: RecommendationProduct[];
+  orders: OrderCard[];
+  cartUpdated: boolean;
+  answerSource: 'llm' | 'template';
 };
 
 export class ApiError extends Error {
@@ -67,9 +90,8 @@ export async function getProducts() {
   return api<{ data: Product[] }>('/products?limit=24');
 }
 
-export function getProductRecommendations(query: string, limit = 5) {
-  return api<RecommendationResponse>('/rag/recommendations', {
-    method: 'POST',
-    body: JSON.stringify({ query, limit }),
-  });
+/** Sends the stored access token when present so the assistant can use order and cart tools. */
+export function sendAssistantMessage(message: string, history: AssistantHistoryMessage[]) {
+  const token = typeof window === 'undefined' ? null : localStorage.getItem('morrow_access_token');
+  return api<AssistantResponse>('/rag/chat', { method: 'POST', body: JSON.stringify({ message, history }) }, token);
 }

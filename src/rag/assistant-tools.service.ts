@@ -118,9 +118,10 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
   },
 ];
 
+/** Models often fill unused price limits with 0, so only positive rupee amounts count as a limit. */
 function toMinorUnits(value: unknown) {
   const amount = Number(value);
-  return value === undefined || value === null || value === '' || !Number.isFinite(amount) ? undefined : Math.round(amount * 100);
+  return value === undefined || value === null || value === '' || !Number.isFinite(amount) || amount <= 0 ? undefined : Math.round(amount * 100);
 }
 
 function formatDate(date: Date) {

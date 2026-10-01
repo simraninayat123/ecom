@@ -53,6 +53,12 @@ describe('assistant tools', () => {
     expect(outcome.products).toHaveLength(1);
   });
 
+  it('treats zero price limits as no limit', async () => {
+    const { tools, rag } = makeTools();
+    await tools.execute('search_products', { query: 'warm blanket', category: '', minPrice: 0, maxPrice: 0 }, { userId: null });
+    expect(rag.searchProducts).toHaveBeenCalledWith('warm blanket', expect.objectContaining({ minPrice: undefined, maxPrice: undefined }), 5);
+  });
+
   it('resolves "cheaper" against the original product price', async () => {
     const { tools, rag } = makeTools();
     await tools.execute('similar_products', { product: 'Ribbed Wool Throw', cheaper: true, maxPrice: 10000 }, { userId: null });

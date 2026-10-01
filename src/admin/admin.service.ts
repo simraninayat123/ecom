@@ -1,48 +1,22 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   AdminOrderQueryDto,
-  CategoryAdminDto,
   InventoryAdjustmentDto,
   ProductAdminDto,
   ProductImageDto,
   ProductVariantDto,
 } from './admin.types.js';
+import { throwNotFoundOrConflict } from '../utils/prisma-errors.util.js';
 
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
-
-  listCategories() {
-    return this.prisma.category.findMany({
-      orderBy: { name: 'asc' },
-      include: { _count: { select: { products: true } } },
-    });
-  }
-  createCategory(data: CategoryAdminDto) {
-    return this.prisma.category.create({ data });
-  }
-  async updateCategory(id: string, data: Partial<CategoryAdminDto>) {
-    try {
-      return await this.prisma.category.update({ where: { id }, data });
-    } catch (error) {
-      this.throwNotFoundOrConflict(error, 'Category not found');
-    }
-  }
-  async deleteCategory(id: string) {
-    try {
-      await this.prisma.category.delete({ where: { id } });
-      return { deleted: true };
-    } catch (error) {
-      this.throwNotFoundOrConflict(error, 'Category not found');
-    }
-  }
 
   listProducts() {
     return this.prisma.product.findMany({
@@ -68,7 +42,7 @@ export class AdminService {
         include: { category: true, images: true, variants: true },
       });
     } catch (error) {
-      this.throwNotFoundOrConflict(error, 'Product not found');
+      throwNotFoundOrConflict(error, 'Product not found');
     }
   }
   async deleteProduct(id: string) {
@@ -79,7 +53,7 @@ export class AdminService {
       });
       return { deleted: true };
     } catch (error) {
-      this.throwNotFoundOrConflict(error, 'Product not found');
+      throwNotFoundOrConflict(error, 'Product not found');
     }
   }
 
@@ -114,7 +88,7 @@ export class AdminService {
         },
       });
     } catch (error) {
-      this.throwNotFoundOrConflict(error, 'Product variant not found');
+      throwNotFoundOrConflict(error, 'Product variant not found');
     }
   }
   async removeVariant(id: string) {
@@ -122,7 +96,7 @@ export class AdminService {
       await this.prisma.productVariant.delete({ where: { id } });
       return { deleted: true };
     } catch (error) {
-      this.throwNotFoundOrConflict(error, 'Product variant not found');
+      throwNotFoundOrConflict(error, 'Product variant not found');
     }
   }
 
@@ -215,23 +189,5 @@ export class AdminService {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');
     return product;
-  }
-  private throwNotFoundOrConflict(
-    error: unknown,
-    notFoundMessage: string,
-  ): never {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2025'
-    )
-      throw new NotFoundException(notFoundMessage);
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    )
-      throw new ConflictException(
-        'A record with that unique value already exists',
-      );
-    throw error;
   }
 }

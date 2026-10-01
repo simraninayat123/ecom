@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { throwNotFoundOrConflict } from '../utils/prisma-errors.util.js';
+import { CreateCategoryDto } from './dto/create-category.dto.js';
+import { UpdateCategoryDto } from './dto/update-category.dto.js';
 
 @Injectable()
 export class CategoriesService {
@@ -24,5 +27,26 @@ export class CategoriesService {
     });
     if (!category) throw new NotFoundException('Category not found');
     return category;
+  }
+
+  create(data: CreateCategoryDto) {
+    return this.prisma.category.create({ data });
+  }
+
+  async update(id: string, data: UpdateCategoryDto) {
+    try {
+      return await this.prisma.category.update({ where: { id }, data });
+    } catch (error) {
+      throwNotFoundOrConflict(error, 'Category not found');
+    }
+  }
+
+  async remove(id: string) {
+    try {
+      await this.prisma.category.delete({ where: { id } });
+      return { deleted: true };
+    } catch (error) {
+      throwNotFoundOrConflict(error, 'Category not found');
+    }
   }
 }

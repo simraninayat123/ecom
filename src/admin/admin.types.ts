@@ -11,18 +11,6 @@ import {
   MinLength,
 } from 'class-validator';
 
-export class CategoryAdminDto {
-  @IsString() @MinLength(1) name!: string;
-  @IsString() @MinLength(1) slug!: string;
-  @IsOptional() @IsString() description?: string;
-}
-
-export class UpdateCategoryAdminDto {
-  @IsOptional() @IsString() @MinLength(1) name?: string;
-  @IsOptional() @IsString() @MinLength(1) slug?: string;
-  @IsOptional() @IsString() description?: string;
-}
-
 export class ProductAdminDto {
   @IsString() @MinLength(1) name!: string;
   @IsString() @MinLength(1) slug!: string;

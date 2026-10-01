@@ -16,12 +16,10 @@ import type { AuthenticatedRequest } from '../auth/auth.types.js';
 import { AdminService } from './admin.service.js';
 import {
   AdminOrderQueryDto,
-  CategoryAdminDto,
   InventoryAdjustmentDto,
   ProductAdminDto,
   ProductImageDto,
   ProductVariantDto,
-  UpdateCategoryAdminDto,
   UpdateOrderStatusDto,
   UpdateProductAdminDto,
   UpdateProductVariantDto,
@@ -31,22 +29,6 @@ import {
 @UseGuards(AuthGuard, AdminGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
-
-  @Get('categories') listCategories() {
-    return this.adminService.listCategories();
-  }
-  @Post('categories') createCategory(@Body() body: CategoryAdminDto) {
-    return this.adminService.createCategory(body);
-  }
-  @Patch('categories/:id') updateCategory(
-    @Param('id') id: string,
-    @Body() body: UpdateCategoryAdminDto,
-  ) {
-    return this.adminService.updateCategory(id, body);
-  }
-  @Delete('categories/:id') deleteCategory(@Param('id') id: string) {
-    return this.adminService.deleteCategory(id);
-  }
 
   @Get('products') listProducts() {
     return this.adminService.listProducts();

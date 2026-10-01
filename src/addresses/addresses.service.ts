@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AddressDto } from './address.types.js';
+import { CreateAddressDto } from './dto/create-address.dto.js';
+import { UpdateAddressDto } from './dto/update-address.dto.js';
 
 @Injectable()
 export class AddressesService {
@@ -13,11 +14,11 @@ export class AddressesService {
     });
   }
 
-  create(userId: string, data: AddressDto) {
+  create(userId: string, data: CreateAddressDto) {
     return this.prisma.address.create({ data: { ...data, userId } });
   }
 
-  async update(userId: string, id: string, data: Partial<AddressDto>) {
+  async update(userId: string, id: string, data: UpdateAddressDto) {
     const result = await this.prisma.address.updateMany({
       where: { id, userId },
       data,

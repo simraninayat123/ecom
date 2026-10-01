@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { CheckoutDto, OrderQueryDto } from './order.types.js';
+import { CheckoutDto } from './dto/checkout.dto.js';
+import { OrderQueryDto } from './dto/order-query.dto.js';
 
 @Injectable()
 export class OrdersService {

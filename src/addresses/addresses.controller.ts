@@ -11,7 +11,8 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard.js';
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
-import { AddressDto, UpdateAddressDto } from './address.types.js';
+import { CreateAddressDto } from './dto/create-address.dto.js';
+import { UpdateAddressDto } from './dto/update-address.dto.js';
 import { AddressesService } from './addresses.service.js';
 
 @Controller('addresses')
@@ -24,7 +25,7 @@ export class AddressesController {
   }
   @Post() create(
     @Req() request: AuthenticatedRequest,
-    @Body() body: AddressDto,
+    @Body() body: CreateAddressDto,
   ) {
     return this.addressesService.create(request.user.id, body);
   }

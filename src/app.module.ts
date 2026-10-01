@@ -6,6 +6,8 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { UsersModule } from './users/users.module.js';
+import { AddressesModule } from './addresses/addresses.module.js';
+import { CategoriesModule } from './categories/categories.module.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import Joi from 'joi';
 import { APP_GUARD } from '@nestjs/core';
@@ -54,6 +56,8 @@ import { HealthModule } from './health/health.module.js';
     UsersModule,
     ProductsModule,
     OrdersModule,
+    AddressesModule,
+    CategoriesModule,
     HealthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

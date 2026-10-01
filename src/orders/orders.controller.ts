@@ -10,7 +10,8 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard.js';
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
-import { CheckoutDto, OrderQueryDto } from './order.types.js';
+import { CheckoutDto } from './dto/checkout.dto.js';
+import { OrderQueryDto } from './dto/order-query.dto.js';
 import { OrdersService } from './orders.service.js';
 
 @Controller()

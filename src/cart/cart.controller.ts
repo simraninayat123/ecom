@@ -11,7 +11,8 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard.js';
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
-import { AddCartItemDto, UpdateCartItemDto } from './cart.types.js';
+import { AddCartItemDto } from './dto/add-cart-item.dto.js';
+import { UpdateCartItemDto } from './dto/update-cart-item.dto.js';
 import { CartService } from './cart.service.js';
 
 @Controller('cart')

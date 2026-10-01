@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsPositive, IsString, Min, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsPositive,
+  IsString,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class CategoryAdminDto {
   @IsString() @MinLength(1) name!: string;
@@ -72,12 +82,31 @@ export class InventoryAdjustmentDto {
 }
 
 export class AdminOrderQueryDto {
-  @IsOptional() @IsIn(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']) status?: string;
-  @IsOptional() @IsIn(['PENDING', 'PAID', 'FAILED', 'REFUNDED']) paymentStatus?: string;
+  @IsOptional()
+  @IsIn([
+    'PENDING',
+    'CONFIRMED',
+    'PROCESSING',
+    'SHIPPED',
+    'DELIVERED',
+    'CANCELLED',
+  ])
+  status?: string;
+  @IsOptional()
+  @IsIn(['PENDING', 'PAID', 'FAILED', 'REFUNDED'])
+  paymentStatus?: string;
   @IsOptional() @Type(() => Number) @IsInt() @IsPositive() page = 1;
   @IsOptional() @Type(() => Number) @IsInt() @IsPositive() limit = 20;
 }
 
 export class UpdateOrderStatusDto {
-  @IsIn(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']) status!: string;
+  @IsIn([
+    'PENDING',
+    'CONFIRMED',
+    'PROCESSING',
+    'SHIPPED',
+    'DELIVERED',
+    'CANCELLED',
+  ])
+  status!: string;
 }

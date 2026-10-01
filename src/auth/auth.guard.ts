@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import jwt from 'jsonwebtoken';
 import { AuthenticatedRequest } from './auth.types.js';
 
@@ -10,7 +15,10 @@ export class AuthGuard implements CanActivate {
     if (!token) throw new UnauthorizedException('A bearer token is required');
 
     try {
-      request.user = jwt.verify(token, process.env.JWT_SECRET ?? 'development-secret') as AuthenticatedRequest['user'];
+      request.user = jwt.verify(
+        token,
+        process.env.JWT_SECRET ?? 'development-secret',
+      ) as AuthenticatedRequest['user'];
       return true;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');

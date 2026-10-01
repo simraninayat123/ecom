@@ -4,5 +4,8 @@ import { AddressesService } from './addresses.service.js';
 import { OrdersController } from './orders.controller.js';
 import { OrdersService } from './orders.service.js';
 
-@Module({ controllers: [AddressesController, OrdersController], providers: [AddressesService, OrdersService] })
+@Module({
+  controllers: [AddressesController, OrdersController],
+  providers: [AddressesService, OrdersService],
+})
 export class OrdersModule {}

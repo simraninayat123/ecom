@@ -3,11 +3,13 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import type { User } from '@prisma/client';
+import bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
-
-type Credentials = { email: string; password: string };
+import { AuthLoginDto } from './dto/auth-login.dto.js';
+import { AuthRegisterDto } from './dto/auth-register.dto.js';
+import type { JwtPayload } from './strategies/types/jwt-payload.type.js';
 
 @Injectable()
 export class AuthService {
@@ -16,46 +18,42 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async register(credentials: Credentials & { name: string }) {
+  async register(dto: AuthRegisterDto) {
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: credentials.email },
+      where: { email: dto.email },
     });
     if (existingUser)
       throw new ConflictException('An account with that email already exists');
 
     const user = await this.prisma.user.create({
       data: {
-        email: credentials.email,
-        name: credentials.name,
-        passwordHash: await bcrypt.hash(credentials.password, 12),
+        email: dto.email,
+        name: dto.name,
+        passwordHash: await bcrypt.hash(dto.password, 12),
       },
     });
     return this.issueToken(user);
   }
 
-  async login(credentials: Credentials) {
+  async login(dto: AuthLoginDto) {
     const user = await this.prisma.user.findUnique({
-      where: { email: credentials.email },
+      where: { email: dto.email },
     });
-    if (
-      !user ||
-      !(await bcrypt.compare(credentials.password, user.passwordHash))
-    ) {
+    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid email or password');
     }
     return this.issueToken(user);
   }
 
-  private issueToken(user: {
-    id: string;
-    email: string;
-    name: string;
-    role: 'CUSTOMER' | 'ADMIN';
-  }) {
-    const payload = { id: user.id, email: user.email, role: user.role };
-    const accessToken = this.jwtService.sign(payload);
+  private issueToken(user: Pick<User, 'id' | 'email' | 'name' | 'role'>) {
+    // Typed as JwtPayload so the token's contents always match what JwtStrategy reads back.
+    const payload: JwtPayload = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    };
     return {
-      accessToken,
+      accessToken: this.jwtService.sign(payload),
       user: {
         id: user.id,
         email: user.email,

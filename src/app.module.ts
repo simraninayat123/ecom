@@ -1,35 +1,26 @@
 import { Module } from '@nestjs/common';
-import { AuthModule } from './auth/auth.module.js';
-import { CartModule } from './cart/cart.module.js';
-import { PrismaModule } from './prisma/prisma.module.js';
-import { ProductsModule } from './products/products.module.js';
-import { OrdersModule } from './orders/orders.module.js';
-import { UsersModule } from './users/users.module.js';
-import { AddressesModule } from './addresses/addresses.module.js';
-import { CategoriesModule } from './categories/categories.module.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import Joi from 'joi';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { HealthModule } from './health/health.module.js';
+import { AddressesModule } from './addresses/addresses.module.js';
+import { AuthModule } from './auth/auth.module.js';
 import authConfig from './auth/config/auth.config.js';
+import { CartModule } from './cart/cart.module.js';
+import { CategoriesModule } from './categories/categories.module.js';
 import appConfig from './config/app.config.js';
 import type { AllConfigType } from './config/config.type.js';
+import { HealthModule } from './health/health.module.js';
+import { OrdersModule } from './orders/orders.module.js';
+import databaseConfig from './prisma/config/database.config.js';
+import { PrismaModule } from './prisma/prisma.module.js';
+import { ProductsModule } from './products/products.module.js';
+import { UsersModule } from './users/users.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, authConfig],
-      validationSchema: Joi.object({
-        DATABASE_URL: Joi.string()
-          .uri({ scheme: ['postgresql', 'postgres'] })
-          .required(),
-        DEFAULT_CURRENCY: Joi.string().length(3).uppercase().default('INR'),
-        NODE_ENV: Joi.string()
-          .valid('development', 'test', 'production')
-          .default('development'),
-      }),
+      load: [appConfig, authConfig, databaseConfig],
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],

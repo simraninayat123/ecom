@@ -15,10 +15,12 @@ import { RolesGuard } from '../roles/roles.guard.js';
 import { CategoriesService } from './categories.service.js';
 import { CreateCategoryDto } from './dto/create-category.dto.js';
 import { UpdateCategoryDto } from './dto/update-category.dto.js';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('admin/categories')
 @Roles(Role.ADMIN)
 @UseGuards(AuthGuard('jwt'), RolesGuard)
+@ApiBearerAuth()
 export class AdminCategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 

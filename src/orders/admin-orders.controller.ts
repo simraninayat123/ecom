@@ -14,10 +14,12 @@ import { RolesGuard } from '../roles/roles.guard.js';
 import { AdminOrderQueryDto } from './dto/admin-order-query.dto.js';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 import { OrdersService } from './orders.service.js';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('admin/orders')
 @Roles(Role.ADMIN)
 @UseGuards(AuthGuard('jwt'), RolesGuard)
+@ApiBearerAuth()
 export class AdminOrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 

@@ -13,9 +13,11 @@ import type { JwtPayload } from '../auth/strategies/types/jwt-payload.type.js';
 import { CheckoutDto } from './dto/checkout.dto.js';
 import { OrderQueryDto } from './dto/order-query.dto.js';
 import { OrdersService } from './orders.service.js';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller()
 @UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 

@@ -14,9 +14,11 @@ import type { JwtPayload } from '../auth/strategies/types/jwt-payload.type.js';
 import { CreateAddressDto } from './dto/create-address.dto.js';
 import { UpdateAddressDto } from './dto/update-address.dto.js';
 import { AddressesService } from './addresses.service.js';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('addresses')
 @UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
 export class AddressesController {
   constructor(private readonly addressesService: AddressesService) {}
 

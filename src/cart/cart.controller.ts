@@ -14,9 +14,11 @@ import type { JwtPayload } from '../auth/strategies/types/jwt-payload.type.js';
 import { AddCartItemDto } from './dto/add-cart-item.dto.js';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto.js';
 import { CartService } from './cart.service.js';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('cart')
 @UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
 export class CartController {
   constructor(private readonly cartService: CartService) {}
 

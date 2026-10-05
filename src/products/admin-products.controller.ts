@@ -20,10 +20,12 @@ import { CreateProductImageDto } from './dto/create-product-image.dto.js';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('admin/products')
 @Roles(Role.ADMIN)
 @UseGuards(AuthGuard('jwt'), RolesGuard)
+@ApiBearerAuth()
 export class AdminProductsController {
   constructor(private readonly productsService: ProductsService) {}
 

@@ -5,131 +5,11 @@ import {
 } from '@nestjs/common';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
-import {
-  AdminOrderQueryDto,
-  InventoryAdjustmentDto,
-  ProductAdminDto,
-  ProductImageDto,
-  ProductVariantDto,
-} from './admin.types.js';
-import { throwNotFoundOrConflict } from '../utils/prisma-errors.util.js';
+import { AdminOrderQueryDto } from './admin.types.js';
 
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
-
-  listProducts() {
-    return this.prisma.product.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        category: true,
-        images: { orderBy: { sortOrder: 'asc' } },
-        variants: true,
-      },
-    });
-  }
-  createProduct(data: ProductAdminDto) {
-    return this.prisma.product.create({
-      data,
-      include: { category: true, images: true, variants: true },
-    });
-  }
-  async updateProduct(id: string, data: Partial<ProductAdminDto>) {
-    try {
-      return await this.prisma.product.update({
-        where: { id },
-        data,
-        include: { category: true, images: true, variants: true },
-      });
-    } catch (error) {
-      throwNotFoundOrConflict(error, 'Product not found');
-    }
-  }
-  async deleteProduct(id: string) {
-    try {
-      await this.prisma.product.update({
-        where: { id },
-        data: { active: false, published: false },
-      });
-      return { deleted: true };
-    } catch (error) {
-      throwNotFoundOrConflict(error, 'Product not found');
-    }
-  }
-
-  async addImage(productId: string, data: ProductImageDto) {
-    await this.requireProduct(productId);
-    return this.prisma.productImage.create({ data: { ...data, productId } });
-  }
-  async removeImage(productId: string, imageId: string) {
-    const result = await this.prisma.productImage.deleteMany({
-      where: { id: imageId, productId },
-    });
-    if (!result.count) throw new NotFoundException('Product image not found');
-    return { deleted: true };
-  }
-  async addVariant(productId: string, data: ProductVariantDto) {
-    await this.requireProduct(productId);
-    return this.prisma.productVariant.create({
-      data: {
-        ...data,
-        productId,
-        options: data.options,
-      },
-    });
-  }
-  async updateVariant(id: string, data: Partial<ProductVariantDto>) {
-    try {
-      return await this.prisma.productVariant.update({
-        where: { id },
-        data: {
-          ...data,
-          options: data.options,
-        },
-      });
-    } catch (error) {
-      throwNotFoundOrConflict(error, 'Product variant not found');
-    }
-  }
-  async removeVariant(id: string) {
-    try {
-      await this.prisma.productVariant.delete({ where: { id } });
-      return { deleted: true };
-    } catch (error) {
-      throwNotFoundOrConflict(error, 'Product variant not found');
-    }
-  }
-
-  async adjustInventory(
-    adminId: string,
-    productId: string,
-    input: InventoryAdjustmentDto,
-  ) {
-    return this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({ where: { id: productId } });
-      if (!product) throw new NotFoundException('Product not found');
-      const nextStock =
-        input.type === 'SET'
-          ? input.quantity
-          : product.stock +
-            (input.type === 'INCREASE' ? input.quantity : -input.quantity);
-      if (nextStock < 0)
-        throw new BadRequestException('Inventory cannot become negative');
-      await tx.product.update({
-        where: { id: productId },
-        data: { stock: nextStock },
-      });
-      return tx.inventoryAdjustment.create({
-        data: {
-          productId,
-          createdById: adminId,
-          type: input.type,
-          quantity: input.quantity,
-          reason: input.reason,
-        },
-      });
-    });
-  }
 
   async listOrders(query: AdminOrderQueryDto) {
     const page = query.page ?? 1;
@@ -183,11 +63,5 @@ export class AdminService {
       data: { orderStatus: status },
       include: { items: true },
     });
-  }
-
-  private async requireProduct(id: string) {
-    const product = await this.prisma.product.findUnique({ where: { id } });
-    if (!product) throw new NotFoundException('Product not found');
-    return product;
   }
 }

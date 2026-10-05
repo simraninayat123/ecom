@@ -6,40 +6,40 @@ import {
   Param,
   Patch,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard.js';
-import type { AuthenticatedRequest } from '../auth/auth.types.js';
+import { AuthGuard } from '@nestjs/passport';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import type { JwtPayload } from '../auth/strategies/types/jwt-payload.type.js';
 import { CreateAddressDto } from './dto/create-address.dto.js';
 import { UpdateAddressDto } from './dto/update-address.dto.js';
 import { AddressesService } from './addresses.service.js';
 
 @Controller('addresses')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard('jwt'))
 export class AddressesController {
   constructor(private readonly addressesService: AddressesService) {}
 
-  @Get() findAll(@Req() request: AuthenticatedRequest) {
-    return this.addressesService.findAll(request.user.id);
+  @Get() findAll(@CurrentUser() user: JwtPayload) {
+    return this.addressesService.findAll(user.id);
   }
   @Post() create(
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser() user: JwtPayload,
     @Body() body: CreateAddressDto,
   ) {
-    return this.addressesService.create(request.user.id, body);
+    return this.addressesService.create(user.id, body);
   }
   @Patch(':id') update(
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() body: UpdateAddressDto,
   ) {
-    return this.addressesService.update(request.user.id, id, body);
+    return this.addressesService.update(user.id, id, body);
   }
   @Delete(':id') remove(
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
   ) {
-    return this.addressesService.remove(request.user.id, id);
+    return this.addressesService.remove(user.id, id);
   }
 }

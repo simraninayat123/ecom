@@ -12,39 +12,32 @@ import Joi from 'joi';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { HealthModule } from './health/health.module.js';
+import authConfig from './auth/config/auth.config.js';
+import appConfig from './config/app.config.js';
+import type { AllConfigType } from './config/config.type.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [appConfig, authConfig],
       validationSchema: Joi.object({
         DATABASE_URL: Joi.string()
           .uri({ scheme: ['postgresql', 'postgres'] })
           .required(),
-        JWT_SECRET: Joi.string()
-          .min(16)
-          .default('development-secret')
-          .when('NODE_ENV', {
-            is: 'production',
-            then: Joi.required().invalid('development-secret'),
-          }),
-        PORT: Joi.number().port().default(3000),
-        FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
         DEFAULT_CURRENCY: Joi.string().length(3).uppercase().default('INR'),
         NODE_ENV: Joi.string()
           .valid('development', 'test', 'production')
           .default('development'),
-        RATE_LIMIT_TTL_MS: Joi.number().positive().default(60000),
-        RATE_LIMIT_MAX: Joi.number().positive().default(100),
       }),
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => [
+      useFactory: (config: ConfigService<AllConfigType>) => [
         {
-          ttl: config.getOrThrow<number>('RATE_LIMIT_TTL_MS'),
-          limit: config.getOrThrow<number>('RATE_LIMIT_MAX'),
+          ttl: config.getOrThrow('app.rateLimit.ttlMs', { infer: true }),
+          limit: config.getOrThrow('app.rateLimit.max', { infer: true }),
         },
       ],
     }),

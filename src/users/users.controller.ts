@@ -1,6 +1,7 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard.js';
-import type { AuthenticatedRequest } from '../auth/auth.types.js';
+import { Controller, Get, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import type { JwtPayload } from '../auth/strategies/types/jwt-payload.type.js';
 import { UsersService } from './users.service.js';
 
 @Controller('users')
@@ -8,8 +9,8 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('me')
-  @UseGuards(AuthGuard)
-  me(@Req() request: AuthenticatedRequest) {
-    return this.usersService.findById(request.user.id);
+  @UseGuards(AuthGuard('jwt'))
+  me(@CurrentUser() user: JwtPayload) {
+    return this.usersService.findById(user.id);
   }
 }

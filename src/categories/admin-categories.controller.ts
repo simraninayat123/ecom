@@ -8,14 +8,17 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../auth/admin.guard.js';
-import { AuthGuard } from '../auth/auth.guard.js';
+import { AuthGuard } from '@nestjs/passport';
+import { Role } from '@prisma/client';
+import { Roles } from '../roles/roles.decorator.js';
+import { RolesGuard } from '../roles/roles.guard.js';
 import { CategoriesService } from './categories.service.js';
 import { CreateCategoryDto } from './dto/create-category.dto.js';
 import { UpdateCategoryDto } from './dto/update-category.dto.js';
 
 @Controller('admin/categories')
-@UseGuards(AuthGuard, AdminGuard)
+@Roles(Role.ADMIN)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AdminCategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 

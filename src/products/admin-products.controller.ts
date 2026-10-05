@@ -6,12 +6,14 @@ import {
   Param,
   Patch,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../auth/admin.guard.js';
-import { AuthGuard } from '../auth/auth.guard.js';
-import type { AuthenticatedRequest } from '../auth/auth.types.js';
+import { AuthGuard } from '@nestjs/passport';
+import { Role } from '@prisma/client';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import type { JwtPayload } from '../auth/strategies/types/jwt-payload.type.js';
+import { Roles } from '../roles/roles.decorator.js';
+import { RolesGuard } from '../roles/roles.guard.js';
 import { ProductsService } from './products.service.js';
 import { AdjustInventoryDto } from './dto/adjust-inventory.dto.js';
 import { CreateProductImageDto } from './dto/create-product-image.dto.js';
@@ -20,7 +22,8 @@ import { CreateProductDto } from './dto/create-product.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
 
 @Controller('admin/products')
-@UseGuards(AuthGuard, AdminGuard)
+@Roles(Role.ADMIN)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AdminProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
@@ -70,14 +73,10 @@ export class AdminProductsController {
 
   @Post(':productId/inventory')
   adjustInventory(
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
     @Body() body: AdjustInventoryDto,
   ) {
-    return this.productsService.adjustInventory(
-      request.user.id,
-      productId,
-      body,
-    );
+    return this.productsService.adjustInventory(user.id, productId, body);
   }
 }

@@ -4,14 +4,17 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 type Credentials = { email: string; password: string };
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   async register(credentials: Credentials & { name: string }) {
     const existingUser = await this.prisma.user.findUnique({
@@ -50,11 +53,7 @@ export class AuthService {
     role: 'CUSTOMER' | 'ADMIN';
   }) {
     const payload = { id: user.id, email: user.email, role: user.role };
-    const accessToken = jwt.sign(
-      payload,
-      process.env.JWT_SECRET ?? 'development-secret',
-      { expiresIn: '7d' },
-    );
+    const accessToken = this.jwtService.sign(payload);
     return {
       accessToken,
       user: {

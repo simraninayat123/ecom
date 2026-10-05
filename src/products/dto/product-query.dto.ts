@@ -12,14 +12,13 @@ import {
 
 export class ProductQueryDto {
   @ApiPropertyOptional({
-    example: 'mug',
     description: 'Searches name and description.',
   })
   @IsOptional()
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ example: 'kitchen', description: 'Category slug.' })
+  @ApiPropertyOptional({ description: 'Category slug.' })
   @IsOptional()
   @IsString()
   category?: string;

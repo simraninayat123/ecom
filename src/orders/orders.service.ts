@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AdminOrderQueryDto } from './dto/admin-order-query.dto.js';
 import { CheckoutDto } from './dto/checkout.dto.js';
 import { OrderQueryDto } from './dto/order-query.dto.js';
+import { PaginatedResult } from '../utils/pagination.js';
 
 /** Which statuses an order may move to next. */
 const ALLOWED_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -146,10 +147,12 @@ export class OrdersService {
       }),
       this.prisma.order.count({ where: { userId } }),
     ]);
-    return {
-      data,
-      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    };
+    return new PaginatedResult(data, {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
   }
 
   async findOne(userId: string, id: string) {
@@ -181,10 +184,12 @@ export class OrdersService {
       }),
       this.prisma.order.count({ where }),
     ]);
-    return {
-      data,
-      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    };
+    return new PaginatedResult(data, {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
   }
 
   async updateStatus(id: string, status: OrderStatus) {

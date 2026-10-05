@@ -14,6 +14,7 @@ import { CheckoutDto } from './dto/checkout.dto.js';
 import { OrderQueryDto } from './dto/order-query.dto.js';
 import { OrdersService } from './orders.service.js';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { ResponseMessage } from '../utils/response-message.decorator.js';
 
 @Controller()
 @UseGuards(AuthGuard('jwt'))
@@ -21,10 +22,9 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  @Post('checkout') checkout(
-    @CurrentUser() user: JwtPayload,
-    @Body() body: CheckoutDto,
-  ) {
+  @Post('checkout')
+  @ResponseMessage('Checkout successful')
+  checkout(@CurrentUser() user: JwtPayload, @Body() body: CheckoutDto) {
     return this.ordersService.checkout(user.id, body);
   }
   @Get('orders') findAll(

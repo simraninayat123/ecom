@@ -12,6 +12,7 @@ import { CreateProductDto } from './dto/create-product.dto.js';
 import { ProductQueryDto } from './dto/product-query.dto.js';
 import { UpdateProductVariantDto } from './dto/update-product-variant.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
+import { PaginatedResult } from '../utils/pagination.js';
 
 @Injectable()
 export class ProductsService {
@@ -68,10 +69,12 @@ export class ProductsService {
       }),
       this.prisma.product.count({ where }),
     ]);
-    return {
-      data,
-      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    };
+    return new PaginatedResult(data, {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
   }
 
   async findOne(idOrSlug: string) {

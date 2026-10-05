@@ -17,6 +17,13 @@ export type CartItem = {
   lineTotal: number;
 };
 
+type ApiResponse<T> = {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: T;
+};
+
 export type Cart = { id: string; items: CartItem[]; subtotal: number; currency: string };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -30,14 +37,13 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
     ...options,
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const message = Array.isArray(body?.message) ? body.message.join(', ') : body?.message;
-    throw new Error(message ?? `Request failed (${response.status})`);
+  const body = (await response.json().catch(() => null)) as ApiResponse<T> | null;
+  if (!response.ok || !body?.success) {
+    throw new Error(body?.message ?? `Request failed (${response.status})`);
   }
-  return response.json() as Promise<T>;
+  return body.data;
 }
 
 export async function getProducts() {
-  return api<{ data: Product[] }>('/products?limit=24');
+  return api<Product[]>('/products?limit=24');
 }

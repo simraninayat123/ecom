@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
-import { AdminModule } from './admin/admin.module.js';
 import { CartModule } from './cart/cart.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProductsModule } from './products/products.module.js';
@@ -51,7 +50,6 @@ import { HealthModule } from './health/health.module.js';
     }),
     PrismaModule,
     AuthModule,
-    AdminModule,
     CartModule,
     UsersModule,
     ProductsModule,

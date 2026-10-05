@@ -86,4 +86,17 @@ describe('OrdersService', () => {
       new OrdersService(prisma as never).findOne('user-1', 'order-user-2'),
     ).rejects.toThrow(NotFoundException);
   });
+
+  it('rejects invalid order status transitions', async () => {
+    const prisma = {
+      order: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ id: 'order-1', orderStatus: 'PENDING' }),
+      },
+    };
+    await expect(
+      new OrdersService(prisma as never).updateStatus('order-1', 'SHIPPED'),
+    ).rejects.toThrow(BadRequestException);
+  });
 });

@@ -3,9 +3,21 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AdminOrderQueryDto } from './dto/admin-order-query.dto.js';
 import { CheckoutDto } from './dto/checkout.dto.js';
 import { OrderQueryDto } from './dto/order-query.dto.js';
+
+/** Which statuses an order may move to next. */
+const ALLOWED_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PENDING: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
+  CONFIRMED: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
+  PROCESSING: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
+  SHIPPED: [OrderStatus.DELIVERED],
+  DELIVERED: [],
+  CANCELLED: [],
+};
 
 @Injectable()
 export class OrdersService {
@@ -147,5 +159,48 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException('Order not found');
     return order;
+  }
+
+  async findAllForAdmin(query: AdminOrderQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const where = {
+      ...(query.status ? { orderStatus: query.status } : {}),
+      ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
+    };
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          items: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async updateStatus(id: string, status: OrderStatus) {
+    const order = await this.prisma.order.findUnique({ where: { id } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (
+      status !== order.orderStatus &&
+      !ALLOWED_STATUS_TRANSITIONS[order.orderStatus].includes(status)
+    )
+      throw new BadRequestException(
+        `Cannot move order from ${order.orderStatus} to ${status}`,
+      );
+    return this.prisma.order.update({
+      where: { id },
+      data: { orderStatus: status },
+      include: { items: true },
+    });
   }
 }

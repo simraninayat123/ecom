@@ -14,13 +14,15 @@ import { OrdersModule } from './orders/orders.module.js';
 import databaseConfig from './prisma/config/database.config.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProductsModule } from './products/products.module.js';
+import ragConfig from './rag/config/rag.config.js';
+import { RagModule } from './rag/rag.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, authConfig, databaseConfig],
+      load: [appConfig, authConfig, databaseConfig, ragConfig],
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
@@ -41,6 +43,7 @@ import { UsersModule } from './users/users.module.js';
     AddressesModule,
     CategoriesModule,
     HealthModule,
+    RagModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -22,22 +22,21 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
           {
             productId: 'product-1',
             quantity: 2,
-            product: { id: 'product-1' },
+            product: {
+              id: 'product-1',
+              name: 'Mug',
+              sku: 'MUG-1',
+              price: 1250,
+              currency: 'INR',
+              stock: 3,
+              active: true,
+              published: true,
+            },
           },
         ],
       }),
     },
     product: {
-      findUnique: vi.fn().mockResolvedValue({
-        id: 'product-1',
-        name: 'Mug',
-        sku: 'MUG-1',
-        price: 1250,
-        currency: 'INR',
-        stock: 3,
-        active: true,
-        published: true,
-      }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     order: {

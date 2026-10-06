@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ProductIndexService } from '../rag/product-index.service.js';
+import { PaginatedResult } from '../utils/pagination.js';
 import { throwNotFoundOrConflict } from '../utils/prisma-errors.util.js';
 import { AdjustInventoryDto } from './dto/adjust-inventory.dto.js';
 import { CreateProductImageDto } from './dto/create-product-image.dto.js';
@@ -12,11 +14,13 @@ import { CreateProductDto } from './dto/create-product.dto.js';
 import { ProductQueryDto } from './dto/product-query.dto.js';
 import { UpdateProductVariantDto } from './dto/update-product-variant.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
-import { PaginatedResult } from '../utils/pagination.js';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly productIndexService: ProductIndexService,
+  ) {}
 
   async findAll(query: ProductQueryDto) {
     const page = query.page ?? 1;
@@ -106,18 +110,26 @@ export class ProductsService {
   }
 
   create(data: CreateProductDto) {
-    return this.prisma.product.create({
-      data,
-      include: { category: true, images: true, variants: true },
+    return this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.create({
+        data,
+        include: { category: true, images: true, variants: true },
+      });
+      await this.productIndexService.enqueue(tx, product.id, 'UPSERT');
+      return product;
     });
   }
 
   async update(id: string, data: UpdateProductDto) {
     try {
-      return await this.prisma.product.update({
-        where: { id },
-        data,
-        include: { category: true, images: true, variants: true },
+      return await this.prisma.$transaction(async (tx) => {
+        const product = await tx.product.update({
+          where: { id },
+          data,
+          include: { category: true, images: true, variants: true },
+        });
+        await this.productIndexService.enqueue(tx, product.id, 'UPSERT');
+        return product;
       });
     } catch (error) {
       throwNotFoundOrConflict(error, 'Product not found');
@@ -127,9 +139,12 @@ export class ProductsService {
   /** Soft delete: hides the product so existing orders and carts keep their reference. */
   async remove(id: string) {
     try {
-      await this.prisma.product.update({
-        where: { id },
-        data: { active: false, published: false },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.product.update({
+          where: { id },
+          data: { active: false, published: false },
+        });
+        await this.productIndexService.enqueue(tx, id, 'DELETE');
       });
       return { deleted: true };
     } catch (error) {

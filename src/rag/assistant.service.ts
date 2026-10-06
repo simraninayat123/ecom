@@ -5,10 +5,10 @@ import {
   AssistantToolsService,
   type ToolContext,
 } from './assistant-tools.service.js';
+import type { ChatHistoryMessageDto } from './dto/chat-history-message.dto.js';
 import { GenerationService, type ChatMessage } from './generation.service.js';
 import { RagService } from './rag.service.js';
 import type {
-  ChatHistoryMessage,
   ChatResponse,
   OrderCard,
   RecommendationProduct,
@@ -59,7 +59,7 @@ export class AssistantService {
 
   async chat(
     message: string,
-    history: ChatHistoryMessage[],
+    history: ChatHistoryMessageDto[],
     userId: string | null,
   ): Promise<ChatResponse> {
     const query = message.trim();
@@ -93,7 +93,7 @@ export class AssistantService {
         );
       } catch (error) {
         this.logger.warn(
-          `Assistant LLM call failed: ${error instanceof Error ? error.message : error}`,
+          `Assistant LLM call failed: ${error instanceof Error ? error.message : String(error)}`,
         );
         if (step === 0) return this.fallback(query);
         return {

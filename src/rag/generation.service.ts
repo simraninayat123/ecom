@@ -1,11 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { AllConfigType } from '../config/config.type.js';
 import type { RecommendationProduct } from './rag.types.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-// OpenRouter falls back through this list in order if a model is rate-limited or unavailable.
-const DEFAULT_MODELS =
-  'openai/gpt-4.1-mini,google/gemini-2.5-flash,openai/gpt-4.1-nano';
 
 const SYSTEM_PROMPT = `You are the shopping assistant for Morrow Supply, an online store.
 Recommend products ONLY from the numbered catalog entries provided with each request.
@@ -74,21 +72,22 @@ export function buildCatalogContext(products: RecommendationProduct[]) {
 @Injectable()
 export class GenerationService {
   private readonly logger = new Logger(GenerationService.name);
-  private readonly apiKey: string | undefined;
+  private readonly apiKey: string | null;
   private readonly models: string[];
   private readonly timeoutMs: number;
   private readonly referer: string;
 
-  constructor(config: ConfigService) {
-    this.apiKey = config.get<string>('OPENROUTER_API_KEY') || undefined;
-    const configured = config.get<string>('OPENROUTER_MODEL') ?? DEFAULT_MODELS;
-    this.models = configured
-      .split(',')
-      .map((model) => model.trim())
-      .filter(Boolean);
-    this.timeoutMs = Number(config.get('OPENROUTER_TIMEOUT_MS') ?? 20_000);
-    this.referer =
-      config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001';
+  constructor(configService: ConfigService<AllConfigType>) {
+    const { apiKey, models, timeoutMs } = configService.getOrThrow(
+      'rag.generation',
+      { infer: true },
+    );
+    this.apiKey = apiKey;
+    this.models = models;
+    this.timeoutMs = timeoutMs;
+    this.referer = configService.getOrThrow('app.frontendUrl', {
+      infer: true,
+    });
   }
 
   get enabled() {

@@ -1,6 +1,7 @@
+import { InferenceClient } from '@huggingface/inference';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InferenceClient } from '@huggingface/inference';
+import type { AllConfigType } from '../config/config.type.js';
 
 const EMBEDDING_DIMENSION = 384;
 
@@ -10,13 +11,14 @@ export class EmbeddingService {
   private readonly model: string;
   private readonly provider: 'hf-inference';
 
-  constructor(config: ConfigService) {
-    const token = config.get<string>('HF_TOKEN');
+  constructor(configService: ConfigService<AllConfigType>) {
+    const { token, model, provider } = configService.getOrThrow(
+      'rag.embedding',
+      { infer: true },
+    );
     this.client = token ? new InferenceClient(token) : null;
-    this.model =
-      config.get<string>('HF_EMBEDDING_MODEL') ?? 'BAAI/bge-small-en-v1.5';
-    this.provider =
-      config.get<'hf-inference'>('HF_EMBEDDING_PROVIDER') ?? 'hf-inference';
+    this.model = model;
+    this.provider = provider;
   }
 
   async embed(inputs: string[]): Promise<number[][]> {

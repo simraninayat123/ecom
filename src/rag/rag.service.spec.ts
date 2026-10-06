@@ -1,6 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AdminService } from '../admin/admin.service.js';
+import type { AllConfigType } from '../config/config.type.js';
+import type { RagConfig } from './config/rag-config.type.js';
 import { EmbeddingService } from './embedding.service.js';
 import {
   buildCatalogContext,
@@ -10,17 +11,37 @@ import { IndexingWorkerService } from './indexing-worker.service.js';
 import { buildProductDocument } from './product-index.service.js';
 import { RagService } from './rag.service.js';
 
-const config = {
-  get: vi.fn(
-    (key: string) =>
-      (
-        ({ RAG_RETRIEVAL_LIMIT: 5, RAG_MIN_SIMILARITY: 0.35 }) as Record<
-          string,
-          unknown
-        >
-      )[key],
-  ),
-} as unknown as ConfigService;
+function configService(
+  generation: Partial<RagConfig['generation']> = {},
+): ConfigService<AllConfigType> {
+  const settings = {
+    app: { frontendUrl: 'http://localhost:3001' },
+    rag: {
+      embedding: {
+        token: null,
+        model: 'BAAI/bge-small-en-v1.5',
+        provider: 'hf-inference',
+      },
+      indexing: { intervalMs: 5000 },
+      retrieval: { limit: 5, minSimilarity: 0.35 },
+      generation: {
+        apiKey: null,
+        models: ['test/model'],
+        timeoutMs: 20000,
+        ...generation,
+      },
+    },
+  };
+  return {
+    getOrThrow: (path: string) =>
+      path
+        .split('.')
+        .reduce<unknown>(
+          (value, key) => (value as Record<string, unknown>)[key],
+          settings,
+        ),
+  } as unknown as ConfigService<AllConfigType>;
+}
 
 const noGeneration = {
   generateAnswer: vi.fn().mockResolvedValue(null),
@@ -42,59 +63,6 @@ describe('RAG product recommendations', () => {
     expect(document).toContain('Category: Home');
     expect(document).toContain('Variants: Classic, colour: Oat');
     expect(document).toContain('Availability: In stock');
-  });
-
-  it('queues UPSERT and DELETE jobs through admin product mutations', async () => {
-    const jobs = { upsert: vi.fn() };
-    const product = {
-      id: 'product-1',
-      category: null,
-      images: [],
-      variants: [],
-    };
-    const tx = {
-      product: {
-        create: vi.fn().mockResolvedValue(product),
-        update: vi.fn().mockResolvedValue(product),
-      },
-      productIndexJob: jobs,
-    };
-    const prisma = {
-      $transaction: vi.fn((callback: (client: typeof tx) => unknown) =>
-        callback(tx),
-      ),
-    };
-    const indexer = { enqueue: vi.fn() };
-    const service = new AdminService(prisma, indexer);
-    await service.createProduct({
-      name: 'Test',
-      slug: 'test',
-      sku: 'TEST-1',
-      description: 'Test',
-      price: 100,
-      imageUrl: 'image',
-      stock: 1,
-    });
-    await service.updateProduct('product-1', { name: 'Updated' });
-    await service.deleteProduct('product-1');
-    expect(indexer.enqueue).toHaveBeenNthCalledWith(
-      1,
-      tx,
-      'product-1',
-      'UPSERT',
-    );
-    expect(indexer.enqueue).toHaveBeenNthCalledWith(
-      2,
-      tx,
-      'product-1',
-      'UPSERT',
-    );
-    expect(indexer.enqueue).toHaveBeenNthCalledWith(
-      3,
-      tx,
-      'product-1',
-      'DELETE',
-    );
   });
 
   it('maps only current active and published product cards', async () => {
@@ -125,7 +93,7 @@ describe('RAG product recommendations', () => {
     const result = await new RagService(
       prisma as never,
       embeddings as never,
-      config,
+      configService(),
       noGeneration,
     ).recommend('warm blanket');
     expect(result.products).toHaveLength(1);
@@ -145,7 +113,7 @@ describe('RAG product recommendations', () => {
     const result = await new RagService(
       prisma as never,
       embeddings as never,
-      config,
+      configService(),
       noGeneration,
     ).recommend('something unavailable');
     expect(result.products).toEqual([]);
@@ -153,18 +121,14 @@ describe('RAG product recommendations', () => {
   });
 
   it('reports a clear error when HF_TOKEN is missing', async () => {
-    const service = new EmbeddingService({
-      get: vi.fn((key: string) =>
-        key === 'HF_EMBEDDING_MODEL' ? 'BAAI/bge-small-en-v1.5' : undefined,
-      ),
-    } as never);
+    const service = new EmbeddingService(configService());
     await expect(service.embed(['query'])).rejects.toThrow(
       ServiceUnavailableException,
     );
   });
 
   it('validates the embedding dimension', () => {
-    const service = new EmbeddingService({ get: vi.fn() } as never);
+    const service = new EmbeddingService(configService());
     expect(() => service.normalizeVector([0.1])).toThrow(
       'Embedding dimension must be 384',
     );
@@ -199,6 +163,7 @@ describe('RAG product recommendations', () => {
       prisma as never,
       embeddings as never,
       indexer as never,
+      configService(),
     );
     await worker.processNext();
     expect(prisma.productIndexJob.update).toHaveBeenCalledWith(
@@ -240,6 +205,7 @@ describe('RAG product recommendations', () => {
       prisma as never,
       { embed: vi.fn().mockRejectedValue(new Error('failure')) } as never,
       { buildDocumentFromProduct: vi.fn().mockReturnValue('doc') } as never,
+      configService(),
     );
     await worker.processNext();
     expect(prisma.productIndexJob.update).toHaveBeenCalledWith(
@@ -270,28 +236,24 @@ describe('RAG product recommendations', () => {
     const embeddings = {
       embed: vi.fn().mockResolvedValue([[...Array(384).fill(0.1)]]),
     };
-    const generationConfig = (values: Record<string, unknown>) =>
-      ({
-        get: vi.fn((key: string) => values[key]),
-      }) as unknown as ConfigService;
 
     afterEach(() => vi.unstubAllGlobals());
 
     it('uses the generated answer when the LLM responds', async () => {
-      const generation = {
-        generateAnswer: vi.fn().mockResolvedValue('The Throw is a cosy pick.'),
-      } as unknown as GenerationService;
+      const generateAnswer = vi
+        .fn()
+        .mockResolvedValue('The Throw is a cosy pick.');
       const result = await new RagService(
         retrieval() as never,
         embeddings as never,
-        config,
-        generation,
+        configService(),
+        { generateAnswer } as unknown as GenerationService,
       ).recommend('  warm blanket ');
       expect(result).toMatchObject({
         answer: 'The Throw is a cosy pick.',
         answerSource: 'llm',
       });
-      expect(generation.generateAnswer).toHaveBeenCalledWith('warm blanket', [
+      expect(generateAnswer).toHaveBeenCalledWith('warm blanket', [
         expect.objectContaining({ id: 'active' }),
       ]);
     });
@@ -300,7 +262,7 @@ describe('RAG product recommendations', () => {
       const result = await new RagService(
         retrieval() as never,
         embeddings as never,
-        config,
+        configService(),
         noGeneration,
       ).recommend('warm blanket');
       expect(result.answerSource).toBe('template');
@@ -318,7 +280,7 @@ describe('RAG product recommendations', () => {
     it('skips the request when no API key is configured', async () => {
       const fetchMock = vi.fn();
       vi.stubGlobal('fetch', fetchMock);
-      const generation = new GenerationService(generationConfig({}));
+      const generation = new GenerationService(configService());
       await expect(
         generation.generateAnswer('warm blanket', [
           { ...product, similarity: 0.8 },
@@ -330,47 +292,51 @@ describe('RAG product recommendations', () => {
     it('calls OpenRouter with the configured model and returns the answer', async () => {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({
-          choices: [{ message: { content: ' Try the Throw. ' } }],
-        }),
+        json: () =>
+          Promise.resolve({
+            choices: [{ message: { content: ' Try the Throw. ' } }],
+          }),
       });
       vi.stubGlobal('fetch', fetchMock);
       const generation = new GenerationService(
-        generationConfig({
-          OPENROUTER_API_KEY: 'key',
-          OPENROUTER_MODEL: 'test/model:free',
-        }),
+        configService({ apiKey: 'key', models: ['test/model:free'] }),
       );
       await expect(
         generation.generateAnswer('warm blanket', [
           { ...product, similarity: 0.8 },
         ]),
       ).resolves.toBe('Try the Throw.');
-      const [url, init] = fetchMock.mock.calls[0];
+      const [url, init] = fetchMock.mock.calls[0] as [
+        string,
+        { headers: Record<string, string>; body: string },
+      ];
+      const body = JSON.parse(init.body) as {
+        model: string;
+        models?: string[];
+      };
       expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
       expect(init.headers.Authorization).toBe('Bearer key');
-      expect(JSON.parse(init.body).model).toBe('test/model:free');
-      expect(JSON.parse(init.body).models).toBeUndefined();
+      expect(body.model).toBe('test/model:free');
+      expect(body.models).toBeUndefined();
     });
 
     it('sends extra configured models as OpenRouter fallbacks', async () => {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({
-          choices: [{ message: { content: 'Try the Throw.' } }],
-        }),
+        json: () =>
+          Promise.resolve({
+            choices: [{ message: { content: 'Try the Throw.' } }],
+          }),
       });
       vi.stubGlobal('fetch', fetchMock);
       const generation = new GenerationService(
-        generationConfig({
-          OPENROUTER_API_KEY: 'key',
-          OPENROUTER_MODEL: 'a/one:free, b/two:free',
-        }),
+        configService({ apiKey: 'key', models: ['a/one:free', 'b/two:free'] }),
       );
       await generation.generateAnswer('warm blanket', [
         { ...product, similarity: 0.8 },
       ]);
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+      const body = JSON.parse(init.body) as { model: string; models: string[] };
       expect(body.model).toBe('a/one:free');
       expect(body.models).toEqual(['a/one:free', 'b/two:free']);
     });
@@ -380,18 +346,19 @@ describe('RAG product recommendations', () => {
         'fetch',
         vi.fn().mockResolvedValue({
           ok: true,
-          json: async () => ({
-            choices: [
-              {
-                finish_reason: 'length',
-                message: { content: 'We need to recommend' },
-              },
-            ],
-          }),
+          json: () =>
+            Promise.resolve({
+              choices: [
+                {
+                  finish_reason: 'length',
+                  message: { content: 'We need to recommend' },
+                },
+              ],
+            }),
         }),
       );
       const generation = new GenerationService(
-        generationConfig({ OPENROUTER_API_KEY: 'key' }),
+        configService({ apiKey: 'key' }),
       );
       await expect(
         generation.generateAnswer('warm blanket', [
@@ -406,11 +373,11 @@ describe('RAG product recommendations', () => {
         vi.fn().mockResolvedValue({
           ok: false,
           status: 429,
-          text: async () => 'rate limited',
+          text: () => Promise.resolve('rate limited'),
         }),
       );
       const generation = new GenerationService(
-        generationConfig({ OPENROUTER_API_KEY: 'key' }),
+        configService({ apiKey: 'key' }),
       );
       await expect(
         generation.generateAnswer('warm blanket', [

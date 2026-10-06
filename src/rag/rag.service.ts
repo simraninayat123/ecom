@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import type { AllConfigType } from '../config/config.type.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { RagConfig } from './config/rag-config.type.js';
 import { EmbeddingService } from './embedding.service.js';
 import { GenerationService } from './generation.service.js';
 import type {
@@ -12,19 +14,24 @@ import type {
 
 @Injectable()
 export class RagService {
+  private readonly retrieval: RagConfig['retrieval'];
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddings: EmbeddingService,
-    private readonly config: ConfigService,
+    configService: ConfigService<AllConfigType>,
     private readonly generation: GenerationService,
-  ) {}
+  ) {
+    this.retrieval = configService.getOrThrow('rag.retrieval', {
+      infer: true,
+    });
+  }
 
   async recommend(
     query: string,
     requestedLimit?: number,
   ): Promise<RecommendationResponse> {
-    const limit =
-      requestedLimit ?? Number(this.config.get('RAG_RETRIEVAL_LIMIT') ?? 5);
+    const limit = requestedLimit ?? this.retrieval.limit;
     const products = await this.searchProducts(query, {}, limit);
     if (!products.length)
       return {
@@ -52,7 +59,7 @@ export class RagService {
     filters: ProductSearchFilters = {},
     limit = 5,
   ): Promise<RecommendationProduct[]> {
-    const minSimilarity = Number(this.config.get('RAG_MIN_SIMILARITY') ?? 0.35);
+    const { minSimilarity } = this.retrieval;
     const [vector] = await this.embeddings.embed([query.trim()]);
     const vectorLiteral = `[${vector.join(',')}]`;
     // Over-fetch so structured filters still leave enough semantic matches.

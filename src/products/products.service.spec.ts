@@ -1,6 +1,10 @@
 import { ProductsService } from './products.service.js';
 
 describe('ProductsService', () => {
+  const productIndexService = { enqueue: vi.fn() };
+
+  beforeEach(() => productIndexService.enqueue.mockReset());
+
   it('returns stable pagination metadata and catalogue filters', async () => {
     const findMany = vi.fn().mockResolvedValue([{ id: 'p1' }]);
     const count = vi.fn().mockResolvedValue(5);
@@ -10,7 +14,10 @@ describe('ProductsService', () => {
         Promise.all(operations),
       ),
     };
-    const service = new ProductsService(prisma as never);
+    const service = new ProductsService(
+      prisma as never,
+      productIndexService as never,
+    );
 
     const result = await service.findAll({
       search: 'mug',
@@ -33,6 +40,48 @@ describe('ProductsService', () => {
     );
   });
 
+  it('queues a re-index in the same transaction as each product change', async () => {
+    const product = {
+      id: 'product-1',
+      category: null,
+      images: [],
+      variants: [],
+    };
+    const tx = {
+      product: {
+        create: vi.fn().mockResolvedValue(product),
+        update: vi.fn().mockResolvedValue(product),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn((callback: (client: typeof tx) => unknown) =>
+        callback(tx),
+      ),
+    };
+    const service = new ProductsService(
+      prisma as never,
+      productIndexService as never,
+    );
+
+    await service.create({
+      name: 'Test',
+      slug: 'test',
+      sku: 'TEST-1',
+      description: 'Test',
+      price: 100,
+      imageUrl: 'image',
+      stock: 1,
+    });
+    await service.update('product-1', { name: 'Updated' });
+    await service.remove('product-1');
+
+    expect(productIndexService.enqueue.mock.calls).toEqual([
+      [tx, 'product-1', 'UPSERT'],
+      [tx, 'product-1', 'UPSERT'],
+      [tx, 'product-1', 'DELETE'],
+    ]);
+  });
+
   it('records inventory adjustments in the same transaction as the stock change', async () => {
     const tx = {
       product: {
@@ -48,11 +97,14 @@ describe('ProductsService', () => {
         callback(tx),
       ),
     };
-    const result = await new ProductsService(prisma as never).adjustInventory(
-      'admin-1',
-      'product-1',
-      { type: 'INCREASE', quantity: 3, reason: 'Restock' },
-    );
+    const result = await new ProductsService(
+      prisma as never,
+      productIndexService as never,
+    ).adjustInventory('admin-1', 'product-1', {
+      type: 'INCREASE',
+      quantity: 3,
+      reason: 'Restock',
+    });
     expect(result).toEqual({ id: 'adjustment-1' });
     expect(tx.product.update).toHaveBeenCalledWith({
       where: { id: 'product-1' },

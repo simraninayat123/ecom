@@ -25,7 +25,10 @@ export function buildProductDocument(product: {
         variant.options !== null &&
         !Array.isArray(variant.options)
           ? Object.entries(variant.options)
-              .map(([key, value]) => `${key}: ${String(value)}`)
+              .map(
+                ([key, value]) =>
+                  `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`,
+              )
               .join(', ')
           : String(variant.options);
       return `${variant.name}${values ? `, ${values}` : ''}`;

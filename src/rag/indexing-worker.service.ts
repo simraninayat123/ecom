@@ -4,7 +4,9 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import type { AllConfigType } from '../config/config.type.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EmbeddingService } from './embedding.service.js';
 import { ProductIndexService } from './product-index.service.js';
@@ -16,16 +18,25 @@ export class IndexingWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(IndexingWorkerService.name);
   private interval: NodeJS.Timeout | undefined;
   private running = false;
+  private readonly intervalMs: number;
+  private readonly embeddingModel: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddingService: EmbeddingService,
     private readonly productIndexService: ProductIndexService,
-  ) {}
+    configService: ConfigService<AllConfigType>,
+  ) {
+    this.intervalMs = configService.getOrThrow('rag.indexing.intervalMs', {
+      infer: true,
+    });
+    this.embeddingModel = configService.getOrThrow('rag.embedding.model', {
+      infer: true,
+    });
+  }
 
   onModuleInit() {
-    const intervalMs = Number(process.env.RAG_INDEXING_INTERVAL_MS ?? 5000);
-    this.interval = setInterval(() => void this.processNext(), intervalMs);
+    this.interval = setInterval(() => void this.processNext(), this.intervalMs);
     this.interval.unref();
     void this.processNext();
   }
@@ -130,7 +141,7 @@ export class IndexingWorkerService implements OnModuleInit, OnModuleDestroy {
     const vector = `[${embedding.join(',')}]`;
     await this.prisma.$executeRaw(Prisma.sql`
       INSERT INTO "ProductEmbedding" ("productId", "document", "embedding", "embeddingModel", "indexedAt", "createdAt", "updatedAt")
-      VALUES (${productId}, ${document}, ${vector}::vector, ${process.env.HF_EMBEDDING_MODEL ?? 'BAAI/bge-small-en-v1.5'}, NOW(), NOW(), NOW())
+      VALUES (${productId}, ${document}, ${vector}::vector, ${this.embeddingModel}, NOW(), NOW(), NOW())
       ON CONFLICT ("productId") DO UPDATE SET "document" = EXCLUDED."document", "embedding" = EXCLUDED."embedding", "embeddingModel" = EXCLUDED."embeddingModel", "indexedAt" = NOW(), "updatedAt" = NOW()
     `);
   }

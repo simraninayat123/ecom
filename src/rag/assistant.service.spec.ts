@@ -5,6 +5,7 @@ import {
   orderReference,
 } from './assistant-tools.service.js';
 import { AssistantService } from './assistant.service.js';
+import type { ChatMessage } from './generation.service.js';
 
 const product = {
   id: 'throw',
@@ -237,10 +238,11 @@ describe('assistant agent loop', () => {
   function makeAssistant(completions: unknown[]) {
     const generation = { enabled: true, complete: vi.fn() };
     completions.forEach((completion) =>
-      generation.complete.mockImplementationOnce(async () => {
-        if (completion instanceof Error) throw completion;
-        return completion;
-      }),
+      generation.complete.mockImplementationOnce(() =>
+        completion instanceof Error
+          ? Promise.reject(completion)
+          : Promise.resolve(completion),
+      ),
     );
     const tools = {
       execute: vi.fn().mockResolvedValue({
@@ -304,7 +306,9 @@ describe('assistant agent loop', () => {
     });
     expect(generation.complete.mock.calls[0][2]).toBe('required');
     expect(generation.complete.mock.calls[1][2]).toBe('auto');
-    expect(generation.complete.mock.calls[1][0].at(-1)).toMatchObject({
+    const secondCallMessages = generation.complete.mock
+      .calls[1][0] as ChatMessage[];
+    expect(secondCallMessages.at(-1)).toMatchObject({
       role: 'tool',
       tool_call_id: 'call-get_order_details',
     });

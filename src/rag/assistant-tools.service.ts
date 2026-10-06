@@ -364,7 +364,7 @@ export class AssistantToolsService {
   private async searchProducts(
     args: Record<string, unknown>,
   ): Promise<ToolOutcome> {
-    const query = String(args.query ?? '').trim();
+    const query = typeof args.query === 'string' ? args.query.trim() : '';
     if (!query) return { result: { error: 'A search query is required.' } };
     const { filters, note } = await this.filters(args);
     const products = await this.rag.searchProducts(query, filters, 5);
@@ -527,7 +527,7 @@ export class AssistantToolsService {
     userId: string,
     args: Record<string, unknown>,
   ): Promise<ToolOutcome> {
-    const ref = String(args.order ?? '').trim();
+    const ref = typeof args.order === 'string' ? args.order.trim() : '';
     const order = await this.findOrder(userId, ref);
     if (!order)
       return {

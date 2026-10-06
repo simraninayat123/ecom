@@ -14,6 +14,7 @@ import { OrdersModule } from './orders/orders.module.js';
 import databaseConfig from './prisma/config/database.config.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProductsModule } from './products/products.module.js';
+import { RagModule } from './rag/rag.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -41,6 +42,7 @@ import { UsersModule } from './users/users.module.js';
     AddressesModule,
     CategoriesModule,
     HealthModule,
+    RagModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

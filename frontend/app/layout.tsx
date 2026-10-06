@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Header } from '../components/header';
 import { CartProvider } from '../components/cart-provider';
+import { ProductRecommendationChat } from '../components/product-recommendation-chat';
 
 export const metadata: Metadata = {
   title: 'Morrow Supply',
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <CartProvider>
           <Header />
           <main>{children}</main>
+          <ProductRecommendationChat />
         </CartProvider>
       </body>
     </html>

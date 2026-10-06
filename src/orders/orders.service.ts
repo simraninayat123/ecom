@@ -45,24 +45,13 @@ export class OrdersService {
         throw new NotFoundException('Billing address not found');
       const selectedBillingAddress = billingAddress ?? shippingAddress;
 
-      const products = await Promise.all(
-        cart.items.map((item) =>
-          tx.product.findUnique({ where: { id: item.productId } }),
-        ),
-      );
-      if (
-        products.some(
-          (product) => !product || !product.active || !product.published,
-        )
-      )
+      const products = cart.items.map((item) => item.product);
+
+      if (products.some((product) => !product.active || !product.published))
         throw new BadRequestException('A cart product is no longer available');
-      const currentProducts = products as NonNullable<
-        (typeof products)[number]
-      >[];
       for (const item of cart.items) {
-        const product = currentProducts.find(
-          (candidate) => candidate.id === item.productId,
-        )!;
+        const product = item.product;
+
         const updated = await tx.product.updateMany({
           where: {
             id: product.id,
@@ -77,14 +66,12 @@ export class OrdersService {
             `Insufficient stock for ${product.name}`,
           );
       }
+
       const subtotal = cart.items.reduce(
-        (sum, item) =>
-          sum +
-          currentProducts.find((product) => product.id === item.productId)!
-            .price *
-            item.quantity,
+        (sum, item) => sum + item.product.price * item.quantity,
         0,
       );
+
       const order = await tx.order.create({
         data: {
           userId,
@@ -94,7 +81,7 @@ export class OrdersService {
           tax: 0,
           discount: 0,
           total: subtotal,
-          currency: currentProducts[0].currency,
+          currency: products[0].currency,
           shippingRecipientName: shippingAddress.recipientName,
           shippingLine1: shippingAddress.line1,
           shippingLine2: shippingAddress.line2,
@@ -113,9 +100,7 @@ export class OrdersService {
           billingPhone: selectedBillingAddress.phone,
           items: {
             create: cart.items.map((item) => {
-              const product = currentProducts.find(
-                (candidate) => candidate.id === item.productId,
-              )!;
+              const product = item.product;
               return {
                 productId: product.id,
                 productName: product.name,

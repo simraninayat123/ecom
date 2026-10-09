@@ -2,8 +2,84 @@
 
 import { FormEvent, useState } from 'react';
 import { InventoryAdjustmentInput } from '../../lib/api';
-export function InventoryAdjustmentForm({ stock, submitting, onSubmit }: { stock: number; submitting: boolean; onSubmit: (input: InventoryAdjustmentInput) => Promise<void> }) {
-  const [type, setType] = useState<InventoryAdjustmentInput['type']>('INCREASE'); const [quantity, setQuantity] = useState('1'); const [reason, setReason] = useState(''); const [error, setError] = useState('');
-  async function submit(event: FormEvent) { event.preventDefault(); const amount = Number(quantity); if (!Number.isInteger(amount) || amount <= 0 || !reason.trim() || (type === 'DECREASE' && amount > stock)) { setError(type === 'DECREASE' && amount > stock ? 'Decrease cannot make stock negative.' : 'Enter a positive whole number and a reason.'); return; } setError(''); await onSubmit({ type, quantity: amount, reason: reason.trim() }); setReason(''); }
-  return <form className="admin-form" onSubmit={submit}><div className="admin-form-grid"><label>Adjustment type<select value={type} onChange={(event) => setType(event.target.value as InventoryAdjustmentInput['type'])}><option value="INCREASE">Increase</option><option value="DECREASE">Decrease</option><option value="SET">Set exact stock</option></select></label><label>Quantity<input type="number" min="1" step="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} required /></label><label className="admin-full-field">Reason<input value={reason} onChange={(event) => setReason(event.target.value)} required /></label></div>{error && <p className="admin-notice error" role="alert">{error}</p>}<button className="admin-button" disabled={submitting}>{submitting ? 'Updating...' : 'Update stock'}</button></form>;
+export function InventoryAdjustmentForm({
+  stock,
+  submitting,
+  onSubmit,
+}: {
+  stock: number;
+  submitting: boolean;
+  onSubmit: (input: InventoryAdjustmentInput) => Promise<void>;
+}) {
+  const [type, setType] =
+    useState<InventoryAdjustmentInput['type']>('INCREASE');
+  const [quantity, setQuantity] = useState('1');
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const amount = Number(quantity);
+    if (
+      !Number.isInteger(amount) ||
+      amount <= 0 ||
+      !reason.trim() ||
+      (type === 'DECREASE' && amount > stock)
+    ) {
+      setError(
+        type === 'DECREASE' && amount > stock
+          ? 'Decrease cannot make stock negative.'
+          : 'Enter a positive whole number and a reason.',
+      );
+      return;
+    }
+    setError('');
+    await onSubmit({ type, quantity: amount, reason: reason.trim() });
+    setReason('');
+  }
+  return (
+    <form className="admin-form" onSubmit={submit}>
+      <div className="admin-form-grid">
+        <label>
+          Adjustment type
+          <select
+            value={type}
+            onChange={(event) =>
+              setType(event.target.value as InventoryAdjustmentInput['type'])
+            }
+          >
+            <option value="INCREASE">Increase</option>
+            <option value="DECREASE">Decrease</option>
+            <option value="SET">Set exact stock</option>
+          </select>
+        </label>
+        <label>
+          Quantity
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={quantity}
+            onChange={(event) => setQuantity(event.target.value)}
+            required
+          />
+        </label>
+        <label className="admin-full-field">
+          Reason
+          <input
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            required
+          />
+        </label>
+      </div>
+      {error && (
+        <p className="admin-notice error" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="admin-button" disabled={submitting}>
+        {submitting ? 'Updating...' : 'Update stock'}
+      </button>
+    </form>
+  );
 }

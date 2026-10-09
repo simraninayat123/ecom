@@ -1,6 +1,92 @@
 'use client';
 
-import Link from 'next/link'; import { FormEvent, useState } from 'react'; import { useRouter } from 'next/navigation'; import { api, ApiError, SELLER_NAME_KEY, SELLER_SLUG_KEY } from '../../../lib/api';
-export default function AdminLoginPage() { const router = useRouter(); const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setError(''); setLoading(true); const data = new FormData(event.currentTarget); try { const result = await api<{ accessToken: string; sellers: Array<{ name: string; slug: string }> }>('/auth/login', { method: 'POST', body: JSON.stringify({ email: data.get('email'), password: data.get('password') }) }); const seller = result.sellers[0]; if (!seller) throw new Error('This account is not assigned to a seller.'); localStorage.setItem('morrow_access_token', result.accessToken); localStorage.setItem(SELLER_SLUG_KEY, seller.slug); localStorage.setItem(SELLER_NAME_KEY, seller.name); await api('/admin/products', {}, result.accessToken); window.dispatchEvent(new Event('morrow-auth-changed')); router.replace('/admin'); } catch (cause) { localStorage.removeItem('morrow_access_token'); setError(cause instanceof ApiError && (cause.status === 401 || cause.status === 403) ? 'This account does not have access to this seller.' : cause instanceof Error ? cause.message : 'Unable to sign in. Please try again.'); } finally { setLoading(false); } }
-  return <main className="admin-login"><div className="admin-login-card"><p className="eyebrow">Morrow Supply / Operations</p><h1>Administrator sign in</h1><p className="muted">Use an administrator account to manage the catalogue and recommendation index.</p><form className="admin-form" onSubmit={submit} aria-busy={loading}><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Password<input name="password" type="password" autoComplete="current-password" required /></label>{error && <p className="admin-notice error" role="alert">{error}</p>}<button className="admin-button" disabled={loading}>{loading ? 'Verifying...' : 'Sign in to admin'}</button></form><Link className="admin-text-link" href="/">Back to storefront</Link></div></main>; }
+import Link from 'next/link';
+import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  api,
+  ApiError,
+  SELLER_NAME_KEY,
+  SELLER_SLUG_KEY,
+} from '../../../lib/api';
+export default function AdminLoginPage() {
+  const router = useRouter();
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError('');
+    setLoading(true);
+    const data = new FormData(event.currentTarget);
+    try {
+      const result = await api<{
+        accessToken: string;
+        sellers: Array<{ name: string; slug: string }>;
+      }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: data.get('email'),
+          password: data.get('password'),
+        }),
+      });
+      const seller = result.sellers[0];
+      if (!seller) throw new Error('This account is not assigned to a seller.');
+      localStorage.setItem('morrow_access_token', result.accessToken);
+      localStorage.setItem(SELLER_SLUG_KEY, seller.slug);
+      localStorage.setItem(SELLER_NAME_KEY, seller.name);
+      await api('/admin/products', {}, result.accessToken);
+      window.dispatchEvent(new Event('morrow-auth-changed'));
+      router.replace('/admin');
+    } catch (cause) {
+      localStorage.removeItem('morrow_access_token');
+      setError(
+        cause instanceof ApiError &&
+          (cause.status === 401 || cause.status === 403)
+          ? 'This account does not have access to this seller.'
+          : cause instanceof Error
+            ? cause.message
+            : 'Unable to sign in. Please try again.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <main className="admin-login">
+      <div className="admin-login-card">
+        <p className="eyebrow">Morrow Supply / Operations</p>
+        <h1>Administrator sign in</h1>
+        <p className="muted">
+          Use an administrator account to manage the catalogue and
+          recommendation index.
+        </p>
+        <form className="admin-form" onSubmit={submit} aria-busy={loading}>
+          <label>
+            Email
+            <input name="email" type="email" autoComplete="email" required />
+          </label>
+          <label>
+            Password
+            <input
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          {error && (
+            <p className="admin-notice error" role="alert">
+              {error}
+            </p>
+          )}
+          <button className="admin-button" disabled={loading}>
+            {loading ? 'Verifying...' : 'Sign in to admin'}
+          </button>
+        </form>
+        <Link className="admin-text-link" href="/">
+          Back to storefront
+        </Link>
+      </div>
+    </main>
+  );
+}

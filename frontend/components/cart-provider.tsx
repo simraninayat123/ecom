@@ -1,6 +1,13 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { api, Cart } from '../lib/api';
 
 type CartContextValue = {
@@ -27,28 +34,79 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     const token = getToken();
-    if (!token) { setCart(null); setLoading(false); return; }
-    try { setCart(await api<Cart>('/cart', {}, token)); setError(null); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load cart'); }
-    finally { setLoading(false); }
+    if (!token) {
+      setCart(null);
+      setLoading(false);
+      return;
+    }
+    try {
+      setCart(await api<Cart>('/cart', {}, token));
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load cart');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
-    const onAuthChange = () => { setLoading(true); void refresh(); };
+    void refresh();
+  }, [refresh]);
+  useEffect(() => {
+    const onAuthChange = () => {
+      setLoading(true);
+      void refresh();
+    };
     window.addEventListener('morrow-auth-changed', onAuthChange);
-    return () => window.removeEventListener('morrow-auth-changed', onAuthChange);
+    return () =>
+      window.removeEventListener('morrow-auth-changed', onAuthChange);
   }, [refresh]);
 
   const requireToken = () => {
     const token = getToken();
-    if (!token) throw new Error('Please sign in before adding products to your cart.');
+    if (!token)
+      throw new Error('Please sign in before adding products to your cart.');
     return token;
   };
-  const addItem = async (productId: string) => { setCart(await api<Cart>('/cart/items', { method: 'POST', body: JSON.stringify({ productId, quantity: 1 }) }, requireToken())); };
-  const changeQuantity = async (itemId: string, quantity: number) => { setCart(await api<Cart>(`/cart/items/${itemId}`, { method: 'PATCH', body: JSON.stringify({ quantity }) }, requireToken())); };
-  const removeItem = async (itemId: string) => { setCart(await api<Cart>(`/cart/items/${itemId}`, { method: 'DELETE' }, requireToken())); };
-  const value = useMemo(() => ({ cart, loading, error, refresh, addItem, changeQuantity, removeItem }), [cart, loading, error, refresh]);
+  const addItem = async (productId: string) => {
+    setCart(
+      await api<Cart>(
+        '/cart/items',
+        { method: 'POST', body: JSON.stringify({ productId, quantity: 1 }) },
+        requireToken(),
+      ),
+    );
+  };
+  const changeQuantity = async (itemId: string, quantity: number) => {
+    setCart(
+      await api<Cart>(
+        `/cart/items/${itemId}`,
+        { method: 'PATCH', body: JSON.stringify({ quantity }) },
+        requireToken(),
+      ),
+    );
+  };
+  const removeItem = async (itemId: string) => {
+    setCart(
+      await api<Cart>(
+        `/cart/items/${itemId}`,
+        { method: 'DELETE' },
+        requireToken(),
+      ),
+    );
+  };
+  const value = useMemo(
+    () => ({
+      cart,
+      loading,
+      error,
+      refresh,
+      addItem,
+      changeQuantity,
+      removeItem,
+    }),
+    [cart, loading, error, refresh],
+  );
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 

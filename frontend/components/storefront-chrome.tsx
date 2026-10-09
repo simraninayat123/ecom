@@ -8,5 +8,11 @@ export function StorefrontChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdmin = pathname === '/admin' || pathname.startsWith('/admin/');
   if (isAdmin) return <main>{children}</main>;
-  return <><Header /><main>{children}</main><ProductRecommendationChat /></>;
+  return (
+    <>
+      <Header />
+      <main>{children}</main>
+      <ProductRecommendationChat />
+    </>
+  );
 }

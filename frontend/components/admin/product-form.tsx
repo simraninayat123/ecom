@@ -3,17 +3,232 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { AdminCategory, AdminProduct, adminApi, ApiError } from '../../lib/api';
 
-export type ProductInput = { name: string; slug: string; sku: string; description: string; price: number; imageUrl: string; stock: number; active: boolean; published: boolean; currency: string; categoryId?: string };
-type Props = { product?: AdminProduct; onSubmit: (input: ProductInput) => Promise<void>; submitting: boolean; error?: string };
-function slugify(value: string) { return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+export type ProductInput = {
+  name: string;
+  slug: string;
+  sku: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  stock: number;
+  active: boolean;
+  published: boolean;
+  currency: string;
+  categoryId?: string;
+};
+type Props = {
+  product?: AdminProduct;
+  onSubmit: (input: ProductInput) => Promise<void>;
+  submitting: boolean;
+  error?: string;
+};
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
 export function ProductForm({ product, onSubmit, submitting, error }: Props) {
   const [categories, setCategories] = useState<AdminCategory[]>([]);
-  const [form, setForm] = useState({ name: product?.name ?? '', slug: product?.slug ?? '', sku: product?.sku ?? '', description: product?.description ?? '', price: product ? (product.price / 100).toFixed(2) : '', imageUrl: product?.imageUrl ?? '', stock: String(product?.stock ?? 0), active: product?.active ?? true, published: product?.published ?? true, currency: product?.currency ?? 'INR', categoryId: product?.categoryId ?? '' });
+  const [form, setForm] = useState({
+    name: product?.name ?? '',
+    slug: product?.slug ?? '',
+    sku: product?.sku ?? '',
+    description: product?.description ?? '',
+    price: product ? (product.price / 100).toFixed(2) : '',
+    imageUrl: product?.imageUrl ?? '',
+    stock: String(product?.stock ?? 0),
+    active: product?.active ?? true,
+    published: product?.published ?? true,
+    currency: product?.currency ?? 'INR',
+    categoryId: product?.categoryId ?? '',
+  });
   const [slugEdited, setSlugEdited] = useState(Boolean(product));
-  useEffect(() => { adminApi<AdminCategory[]>('/admin/categories').then(setCategories).catch(() => undefined); }, []);
-  useEffect(() => { if (product) setForm({ name: product.name, slug: product.slug, sku: product.sku, description: product.description, price: (product.price / 100).toFixed(2), imageUrl: product.imageUrl, stock: String(product.stock), active: product.active, published: product.published, currency: product.currency, categoryId: product.categoryId ?? '' }); }, [product]);
-  function update(field: string, value: string | boolean) { setForm((current) => ({ ...current, [field]: value })); }
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const price = Number(form.price); const stock = Number(form.stock); if (!form.name.trim() || !form.slug.trim() || !form.sku.trim() || !form.description.trim() || !form.imageUrl.trim() || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0) return; await onSubmit({ ...form, name: form.name.trim(), slug: form.slug.trim(), sku: form.sku.trim(), description: form.description.trim(), price: Math.round(price * 100), stock, categoryId: form.categoryId || undefined }); }
-  return <form className="admin-form" onSubmit={submit} aria-busy={submitting}><div className="admin-form-grid"><label>Name<input value={form.name} onChange={(event) => { update('name', event.target.value); if (!slugEdited) update('slug', slugify(event.target.value)); }} required /></label><label>Slug<input value={form.slug} onChange={(event) => { setSlugEdited(true); update('slug', event.target.value); }} required /></label><label>SKU<input value={form.sku} onChange={(event) => update('sku', event.target.value)} required /></label><label>Price (INR)<input type="number" min="0" step="0.01" value={form.price} onChange={(event) => update('price', event.target.value)} required /><small>Stored as paise by the backend.</small></label><label>Currency<input value={form.currency} onChange={(event) => update('currency', event.target.value.toUpperCase())} required /></label><label>Category<select value={form.categoryId} onChange={(event) => update('categoryId', event.target.value)}><option value="">Uncategorized</option>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label><label className="admin-full-field">Primary image URL<input type="url" value={form.imageUrl} onChange={(event) => update('imageUrl', event.target.value)} required /></label><label className="admin-full-field">Description<textarea value={form.description} onChange={(event) => update('description', event.target.value)} rows={5} required /></label><label>Initial stock<input type="number" min="0" step="1" value={form.stock} onChange={(event) => update('stock', event.target.value)} required /></label><div className="admin-toggle-group"><label className="admin-checkbox"><input type="checkbox" checked={form.active} onChange={(event) => update('active', event.target.checked)} /> Active</label><label className="admin-checkbox"><input type="checkbox" checked={form.published} onChange={(event) => update('published', event.target.checked)} /> Published</label></div></div>{error && <p className="admin-notice error" role="alert">{error}</p>}<button className="admin-button" disabled={submitting}>{submitting ? 'Saving...' : product ? 'Save changes' : 'Create product'}</button></form>;
+  useEffect(() => {
+    adminApi<AdminCategory[]>('/admin/categories')
+      .then(setCategories)
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (product)
+      setForm({
+        name: product.name,
+        slug: product.slug,
+        sku: product.sku,
+        description: product.description,
+        price: (product.price / 100).toFixed(2),
+        imageUrl: product.imageUrl,
+        stock: String(product.stock),
+        active: product.active,
+        published: product.published,
+        currency: product.currency,
+        categoryId: product.categoryId ?? '',
+      });
+  }, [product]);
+  function update(field: string, value: string | boolean) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const price = Number(form.price);
+    const stock = Number(form.stock);
+    if (
+      !form.name.trim() ||
+      !form.slug.trim() ||
+      !form.sku.trim() ||
+      !form.description.trim() ||
+      !form.imageUrl.trim() ||
+      !Number.isFinite(price) ||
+      price < 0 ||
+      !Number.isInteger(stock) ||
+      stock < 0
+    )
+      return;
+    await onSubmit({
+      ...form,
+      name: form.name.trim(),
+      slug: form.slug.trim(),
+      sku: form.sku.trim(),
+      description: form.description.trim(),
+      price: Math.round(price * 100),
+      stock,
+      categoryId: form.categoryId || undefined,
+    });
+  }
+  return (
+    <form className="admin-form" onSubmit={submit} aria-busy={submitting}>
+      <div className="admin-form-grid">
+        <label>
+          Name
+          <input
+            value={form.name}
+            onChange={(event) => {
+              update('name', event.target.value);
+              if (!slugEdited) update('slug', slugify(event.target.value));
+            }}
+            required
+          />
+        </label>
+        <label>
+          Slug
+          <input
+            value={form.slug}
+            onChange={(event) => {
+              setSlugEdited(true);
+              update('slug', event.target.value);
+            }}
+            required
+          />
+        </label>
+        <label>
+          SKU
+          <input
+            value={form.sku}
+            onChange={(event) => update('sku', event.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Price (INR)
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.price}
+            onChange={(event) => update('price', event.target.value)}
+            required
+          />
+          <small>Stored as paise by the backend.</small>
+        </label>
+        <label>
+          Currency
+          <input
+            value={form.currency}
+            onChange={(event) =>
+              update('currency', event.target.value.toUpperCase())
+            }
+            required
+          />
+        </label>
+        <label>
+          Category
+          <select
+            value={form.categoryId}
+            onChange={(event) => update('categoryId', event.target.value)}
+          >
+            <option value="">Uncategorized</option>
+            {categories.map((category) => (
+              <option value={category.id} key={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-full-field">
+          Primary image URL
+          <input
+            type="url"
+            value={form.imageUrl}
+            onChange={(event) => update('imageUrl', event.target.value)}
+            required
+          />
+        </label>
+        <label className="admin-full-field">
+          Description
+          <textarea
+            value={form.description}
+            onChange={(event) => update('description', event.target.value)}
+            rows={5}
+            required
+          />
+        </label>
+        <label>
+          Initial stock
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={form.stock}
+            onChange={(event) => update('stock', event.target.value)}
+            required
+          />
+        </label>
+        <div className="admin-toggle-group">
+          <label className="admin-checkbox">
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(event) => update('active', event.target.checked)}
+            />{' '}
+            Active
+          </label>
+          <label className="admin-checkbox">
+            <input
+              type="checkbox"
+              checked={form.published}
+              onChange={(event) => update('published', event.target.checked)}
+            />{' '}
+            Published
+          </label>
+        </div>
+      </div>
+      {error && (
+        <p className="admin-notice error" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="admin-button" disabled={submitting}>
+        {submitting ? 'Saving...' : product ? 'Save changes' : 'Create product'}
+      </button>
+    </form>
+  );
 }
-export function mutationMessage(error: unknown) { if (error instanceof ApiError && error.status === 409) return error.message; if (error instanceof ApiError && error.status === 503) return 'The service is temporarily unavailable. Please try again.'; return error instanceof Error ? error.message : 'Something went wrong. Please try again.'; }
+export function mutationMessage(error: unknown) {
+  if (error instanceof ApiError && error.status === 409) return error.message;
+  if (error instanceof ApiError && error.status === 503)
+    return 'The service is temporarily unavailable. Please try again.';
+  return error instanceof Error
+    ? error.message
+    : 'Something went wrong. Please try again.';
+}

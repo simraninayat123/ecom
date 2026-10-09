@@ -11,7 +11,7 @@ import type {
   RecommendationProduct,
 } from './rag.types.js';
 
-export type ToolContext = { userId: string | null };
+export type ToolContext = { userId: string | null; sellerId: string };
 /** `result` goes back to the LLM; the other fields drive the chat UI. */
 export type ToolOutcome = {
   result: unknown;
@@ -298,27 +298,27 @@ export class AssistantToolsService {
           return await this.listCategories();
         case 'list_my_orders':
           return context.userId
-            ? await this.listOrders(context.userId, args)
+            ? await this.listOrders(context.userId, context.sellerId, args)
             : { result: SIGN_IN_REQUIRED };
         case 'get_order_details':
           return context.userId
-            ? await this.orderDetails(context.userId, args)
+            ? await this.orderDetails(context.userId, context.sellerId, args)
             : { result: SIGN_IN_REQUIRED };
         case 'view_cart':
           return context.userId
             ? {
                 result: this.presentCart(
-                  await this.cart.getCart(context.userId),
+                  await this.cart.getCart(context.userId, context.sellerId),
                 ),
               }
             : { result: SIGN_IN_REQUIRED };
         case 'add_to_cart':
           return context.userId
-            ? await this.addToCart(context.userId, args)
+            ? await this.addToCart(context.userId, context.sellerId, args)
             : { result: SIGN_IN_REQUIRED };
         case 'update_cart_item':
           return context.userId
-            ? await this.updateCartItem(context.userId, args)
+            ? await this.updateCartItem(context.userId, context.sellerId, args)
             : { result: SIGN_IN_REQUIRED };
         default:
           return { result: { error: `Unknown tool ${name}` } };
@@ -484,6 +484,7 @@ export class AssistantToolsService {
 
   private async listOrders(
     userId: string,
+    sellerId: string,
     args: Record<string, unknown>,
   ): Promise<ToolOutcome> {
     const limit = Math.min(Math.max(Number(args.limit) || 5, 1), 10);
@@ -491,7 +492,7 @@ export class AssistantToolsService {
       typeof args.productName === 'string'
         ? args.productName.trim().toLowerCase()
         : '';
-    const { data, meta } = await this.orders.findAll(userId, {
+    const { data, meta } = await this.orders.findAll(userId, sellerId, {
       page: 1,
       limit: 50,
     });
@@ -525,10 +526,11 @@ export class AssistantToolsService {
 
   private async orderDetails(
     userId: string,
+    sellerId: string,
     args: Record<string, unknown>,
   ): Promise<ToolOutcome> {
     const ref = typeof args.order === 'string' ? args.order.trim() : '';
-    const order = await this.findOrder(userId, ref);
+    const order = await this.findOrder(userId, sellerId, ref);
     if (!order)
       return {
         result: {
@@ -570,11 +572,12 @@ export class AssistantToolsService {
   /** Orders are always looked up inside the signed-in shopper's own orders. */
   private async findOrder(
     userId: string,
+    sellerId: string,
     ref: string,
   ): Promise<OrderWithItems | null> {
     if (!ref || ref.toLowerCase() === 'latest')
       return this.prisma.order.findFirst({
-        where: { userId },
+        where: { userId, sellerId },
         include: { items: true },
         orderBy: { createdAt: 'desc' },
       });
@@ -582,6 +585,7 @@ export class AssistantToolsService {
     return this.prisma.order.findFirst({
       where: {
         userId,
+        sellerId,
         OR: [{ id: normalized }, { id: { endsWith: normalized } }],
       },
       include: { items: true },
@@ -590,6 +594,7 @@ export class AssistantToolsService {
 
   private async addToCart(
     userId: string,
+    sellerId: string,
     args: Record<string, unknown>,
   ): Promise<ToolOutcome> {
     const found = await this.resolveProduct(args.product);
@@ -598,7 +603,12 @@ export class AssistantToolsService {
       Math.max(Math.trunc(Number(args.quantity) || 1), 1),
       10,
     );
-    const cart = await this.cart.addItem(userId, found.product.id, quantity);
+    const cart = await this.cart.addItem(
+      userId,
+      sellerId,
+      found.product.id,
+      quantity,
+    );
     return {
       result: {
         added: { name: found.product.name, quantity },
@@ -610,6 +620,7 @@ export class AssistantToolsService {
 
   private async updateCartItem(
     userId: string,
+    sellerId: string,
     args: Record<string, unknown>,
   ): Promise<ToolOutcome> {
     const found = await this.resolveProduct(args.product);
@@ -617,7 +628,7 @@ export class AssistantToolsService {
     const quantity = Math.trunc(Number(args.quantity));
     if (!Number.isFinite(quantity) || quantity < 0)
       return { result: { error: 'Quantity must be 0 or more.' } };
-    const current = await this.cart.getCart(userId);
+    const current = await this.cart.getCart(userId, sellerId);
     const item = current.items.find(
       (candidate) => candidate.productId === found.product.id,
     );
@@ -630,8 +641,8 @@ export class AssistantToolsService {
       };
     const cart =
       quantity === 0
-        ? await this.cart.removeItem(userId, item.id)
-        : await this.cart.updateItem(userId, item.id, quantity);
+        ? await this.cart.removeItem(userId, sellerId, item.id)
+        : await this.cart.updateItem(userId, sellerId, item.id, quantity);
     return {
       result: {
         updated: { name: found.product.name, quantity },

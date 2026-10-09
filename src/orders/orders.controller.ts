@@ -15,6 +15,8 @@ import { OrderQueryDto } from './dto/order-query.dto.js';
 import { OrdersService } from './orders.service.js';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { ResponseMessage } from '../utils/response-message.decorator.js';
+import { CurrentSeller } from '../tenants/decorators/seller.decorator.js';
+import type { Seller } from '@prisma/client';
 
 @Controller()
 @UseGuards(AuthGuard('jwt'))
@@ -24,19 +26,25 @@ export class OrdersController {
 
   @Post('checkout')
   @ResponseMessage('Checkout successful')
-  checkout(@CurrentUser() user: JwtPayload, @Body() body: CheckoutDto) {
-    return this.ordersService.checkout(user.id, body);
+  checkout(
+    @CurrentUser() user: JwtPayload,
+    @CurrentSeller() seller: Seller,
+    @Body() body: CheckoutDto,
+  ) {
+    return this.ordersService.checkout(user.id, seller.id, body);
   }
   @Get('orders') findAll(
     @CurrentUser() user: JwtPayload,
     @Query() query: OrderQueryDto,
+    @CurrentSeller() seller: Seller,
   ) {
-    return this.ordersService.findAll(user.id, query);
+    return this.ordersService.findAll(user.id, seller.id, query);
   }
   @Get('orders/:id') findOne(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
+    @CurrentSeller() seller: Seller,
   ) {
-    return this.ordersService.findOne(user.id, id);
+    return this.ordersService.findOne(user.id, seller.id, id);
   }
 }

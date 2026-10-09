@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '../../lib/api';
+import { api, SELLER_NAME_KEY, SELLER_SLUG_KEY } from '../../lib/api';
 
-type AuthResult = { accessToken: string };
+type AuthResult = { accessToken: string; sellers: Array<{ name: string; slug: string }> };
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,6 +16,11 @@ export default function LoginPage() {
     try {
       const result = await api<AuthResult>('/auth/login', { method: 'POST', body: JSON.stringify({ email: form.get('email'), password: form.get('password') }) });
       localStorage.setItem('morrow_access_token', result.accessToken);
+      const seller = result.sellers[0];
+      if (seller) {
+        localStorage.setItem(SELLER_SLUG_KEY, seller.slug);
+        localStorage.setItem(SELLER_NAME_KEY, seller.name);
+      }
       window.dispatchEvent(new Event('morrow-auth-changed'));
       router.push('/');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to sign in'); }

@@ -24,7 +24,7 @@ const ALLOWED_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async checkout(userId: string, input: CheckoutDto) {
+  async checkout(userId: string, sellerId: string, input: CheckoutDto) {
     return this.prisma.$transaction(async (tx) => {
       const shippingAddress = await tx.address.findFirst({
         where: { id: input.shippingAddressId, userId },
@@ -32,7 +32,7 @@ export class OrdersService {
       if (!shippingAddress)
         throw new NotFoundException('Shipping address not found');
       const cart = await tx.cart.findUnique({
-        where: { userId },
+        where: { userId, sellerId },
         include: { items: { include: { product: true } } },
       });
       if (!cart?.items.length) throw new BadRequestException('Cart is empty');
@@ -74,6 +74,7 @@ export class OrdersService {
 
       const order = await tx.order.create({
         data: {
+          sellerId,
           userId,
           shippingAddressId: shippingAddress.id,
           subtotal,
@@ -119,18 +120,18 @@ export class OrdersService {
     });
   }
 
-  async findAll(userId: string, query: OrderQueryDto) {
+  async findAll(userId: string, sellerId: string, query: OrderQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const [data, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
-        where: { userId },
+        where: { userId, sellerId },
         include: { items: true },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      this.prisma.order.count({ where: { userId } }),
+      this.prisma.order.count({ where: { userId, sellerId } }),
     ]);
     return new PaginatedResult(data, {
       page,
@@ -140,19 +141,20 @@ export class OrdersService {
     });
   }
 
-  async findOne(userId: string, id: string) {
+  async findOne(userId: string, sellerId: string, id: string) {
     const order = await this.prisma.order.findFirst({
-      where: { id, userId },
+      where: { id, userId, sellerId },
       include: { items: true },
     });
     if (!order) throw new NotFoundException('Order not found');
     return order;
   }
 
-  async findAllForAdmin(query: AdminOrderQueryDto) {
+  async findAllForAdmin(sellerId: string, query: AdminOrderQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const where = {
+      sellerId,
       ...(query.status ? { orderStatus: query.status } : {}),
       ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
     };
@@ -177,8 +179,10 @@ export class OrdersService {
     });
   }
 
-  async updateStatus(id: string, status: OrderStatus) {
-    const order = await this.prisma.order.findUnique({ where: { id } });
+  async updateStatus(sellerId: string, id: string, status: OrderStatus) {
+    const order = await this.prisma.order.findFirst({
+      where: { id, sellerId },
+    });
     if (!order) throw new NotFoundException('Order not found');
     if (
       status !== order.orderStatus &&
@@ -188,7 +192,7 @@ export class OrdersService {
         `Cannot move order from ${order.orderStatus} to ${status}`,
       );
     return this.prisma.order.update({
-      where: { id },
+      where: { id, sellerId },
       data: { orderStatus: status },
       include: { items: true },
     });

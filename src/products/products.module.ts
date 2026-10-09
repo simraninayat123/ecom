@@ -4,9 +4,10 @@ import { AdminProductVariantsController } from './admin-product-variants.control
 import { AdminProductsController } from './admin-products.controller.js';
 import { ProductsController } from './products.controller.js';
 import { ProductsService } from './products.service.js';
+import { TenantsModule } from '../tenants/tenants.module.js';
 
 @Module({
-  imports: [RagModule],
+  imports: [RagModule, TenantsModule],
   controllers: [
     ProductsController,
     AdminProductsController,

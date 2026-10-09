@@ -10,9 +10,10 @@ import { IndexingWorkerService } from './indexing-worker.service.js';
 import { ProductIndexService } from './product-index.service.js';
 import { RagController } from './rag.controller.js';
 import { RagService } from './rag.service.js';
+import { TenantsModule } from '../tenants/tenants.module.js';
 
 @Module({
-  imports: [CartModule, OrdersModule],
+  imports: [CartModule, OrdersModule, TenantsModule],
   controllers: [RagController, AdminRagController],
   providers: [
     EmbeddingService,

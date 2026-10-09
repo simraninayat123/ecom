@@ -30,9 +30,10 @@ export class RagService {
   async recommend(
     query: string,
     requestedLimit?: number,
+    sellerId?: string,
   ): Promise<RecommendationResponse> {
     const limit = requestedLimit ?? this.retrieval.limit;
-    const products = await this.searchProducts(query, {}, limit);
+    const products = await this.searchProducts(query, {}, limit, sellerId);
     if (!products.length)
       return {
         answer:
@@ -58,9 +59,23 @@ export class RagService {
     query: string,
     filters: ProductSearchFilters = {},
     limit = 5,
+    sellerId?: string,
   ): Promise<RecommendationProduct[]> {
+    const keywordMatches = await this.keywordSearch(
+      query,
+      filters,
+      limit,
+      sellerId,
+    );
+    if (keywordMatches.length) return keywordMatches;
+
     const { minSimilarity } = this.retrieval;
-    const [vector] = await this.embeddings.embed([query.trim()]);
+    let vector: number[];
+    try {
+      [vector] = await this.embeddings.embed([query.trim()]);
+    } catch {
+      return [];
+    }
     const vectorLiteral = `[${vector.join(',')}]`;
     // Over-fetch so structured filters still leave enough semantic matches.
     const candidates = this.hasFilters(filters)
@@ -72,10 +87,86 @@ export class RagService {
       SELECT "productId", 1 - ("embedding" <=> ${vectorLiteral}::vector) AS similarity
       FROM "ProductEmbedding"
       WHERE 1 - ("embedding" <=> ${vectorLiteral}::vector) >= ${minSimilarity}
+      ${sellerId ? Prisma.sql`AND "sellerId" = ${sellerId}` : Prisma.empty}
       ORDER BY "embedding" <=> ${vectorLiteral}::vector
       LIMIT ${candidates}
     `);
-    return this.hydrate(matches, filters, limit);
+    return this.hydrate(matches, filters, limit, sellerId);
+  }
+
+  private async keywordSearch(
+    query: string,
+    filters: ProductSearchFilters,
+    limit: number,
+    sellerId?: string,
+  ) {
+    const text = query.trim();
+    if (!text || !this.prisma.product) return [];
+    const terms = text
+      .toLowerCase()
+      .split(/\s+/)
+      .map((term) => term.replace(/[^a-z0-9]/g, ''))
+      .filter((term) => term.length >= 3)
+      .filter(
+        (term) => !['the', 'for', 'and', 'with', 'from', 'some'].includes(term),
+      );
+    const products = await this.prisma.product.findMany({
+      where: {
+        ...(sellerId ? { sellerId } : {}),
+        active: true,
+        published: true,
+        OR: [
+          { name: { equals: text, mode: 'insensitive' } },
+          { slug: { equals: text, mode: 'insensitive' } },
+          { sku: { equals: text, mode: 'insensitive' } },
+          { name: { contains: text, mode: 'insensitive' } },
+          { description: { contains: text, mode: 'insensitive' } },
+          ...terms.flatMap((term) => [
+            { name: { contains: term, mode: 'insensitive' as const } },
+            { description: { contains: term, mode: 'insensitive' as const } },
+          ]),
+        ],
+      },
+      include: { category: true },
+      take: Math.min(limit * 3, 15),
+    });
+    const normalized = text.toLowerCase();
+    const ranked = products.sort((a, b) => {
+      const score = (product: typeof a) =>
+        [product.name, product.slug, product.sku].some(
+          (value) => value.toLowerCase() === normalized,
+        )
+          ? 0
+          : product.name.toLowerCase().startsWith(normalized)
+            ? 1
+            : 2;
+      return score(a) - score(b);
+    });
+    return ranked
+      .filter(
+        (product) =>
+          filters.minPrice === undefined || product.price >= filters.minPrice,
+      )
+      .filter(
+        (product) =>
+          filters.maxPrice === undefined || product.price <= filters.maxPrice,
+      )
+      .filter((product) => !filters.inStockOnly || product.stock > 0)
+      .filter(
+        (product) =>
+          !filters.category ||
+          product.category?.slug === filters.category ||
+          product.category?.name.toLowerCase() ===
+            filters.category.toLowerCase(),
+      )
+      .slice(0, limit)
+      .map((product) => ({
+        ...product,
+        similarity: 1,
+        category: product.category
+          ? { name: product.category.name, slug: product.category.slug }
+          : null,
+      }));
   }
 
   /** Nearest neighbours of an already indexed product, excluding the product itself. */
@@ -113,10 +204,12 @@ export class RagService {
     matches: Array<{ productId: string; similarity: number }>,
     filters: ProductSearchFilters,
     limit: number,
+    sellerId?: string,
   ): Promise<RecommendationProduct[]> {
     if (!matches.length) return [];
     const where: Prisma.ProductWhereInput = {
       id: { in: matches.map((match) => match.productId) },
+      ...(sellerId ? { sellerId } : {}),
       active: true,
       published: true,
       ...(filters.minPrice !== undefined || filters.maxPrice !== undefined

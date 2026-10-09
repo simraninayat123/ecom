@@ -8,16 +8,17 @@ import { UpdateCategoryDto } from './dto/update-category.dto.js';
 export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
+  findAll(sellerId: string) {
     return this.prisma.category.findMany({
+      where: { sellerId },
       orderBy: { name: 'asc' },
       include: { _count: { select: { products: true } } },
     });
   }
 
-  async findOne(slug: string) {
+  async findOne(sellerId: string, slug: string) {
     const category = await this.prisma.category.findUnique({
-      where: { slug },
+      where: { sellerId_slug: { sellerId, slug } },
       include: {
         products: {
           where: { active: true, published: true },
@@ -29,21 +30,24 @@ export class CategoriesService {
     return category;
   }
 
-  create(data: CreateCategoryDto) {
-    return this.prisma.category.create({ data });
+  create(sellerId: string, data: CreateCategoryDto) {
+    return this.prisma.category.create({ data: { ...data, sellerId } });
   }
 
-  async update(id: string, data: UpdateCategoryDto) {
+  async update(sellerId: string, id: string, data: UpdateCategoryDto) {
     try {
-      return await this.prisma.category.update({ where: { id }, data });
+      return await this.prisma.category.update({
+        where: { id, sellerId },
+        data,
+      });
     } catch (error) {
       throwNotFoundOrConflict(error, 'Category not found');
     }
   }
 
-  async remove(id: string) {
+  async remove(sellerId: string, id: string) {
     try {
-      await this.prisma.category.delete({ where: { id } });
+      await this.prisma.category.delete({ where: { id, sellerId } });
       return { deleted: true };
     } catch (error) {
       throwNotFoundOrConflict(error, 'Category not found');

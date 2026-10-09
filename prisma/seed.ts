@@ -33,16 +33,26 @@ const products = [
   { name: 'Cable Organizer Roll', slug: 'cable-organizer-roll', sku: 'MOR-CABLE-001', description: 'A compact canvas roll with elastic loops and zip pockets for chargers, earphones, adapters, and small tech accessories when travelling or commuting.', price: 2800, imageUrl: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=900&q=80', stock: 26, categorySlug: 'carry' },
 ];
 
+const seller = await prisma.seller.upsert({
+  where: { slug: 'morrow' },
+  create: { name: 'Morrow Supply', slug: 'morrow' },
+  update: { name: 'Morrow Supply', active: true },
+});
+
 for (const category of categories) {
-  await prisma.category.upsert({ where: { slug: category.slug }, create: category, update: category });
+  await prisma.category.upsert({
+    where: { sellerId_slug: { sellerId: seller.id, slug: category.slug } },
+    create: { ...category, sellerId: seller.id },
+    update: category,
+  });
 }
 
-const categoryMap = Object.fromEntries((await prisma.category.findMany()).map((category) => [category.slug, category.id]));
+const categoryMap = Object.fromEntries((await prisma.category.findMany({ where: { sellerId: seller.id } })).map((category) => [category.slug, category.id]));
 
 for (const { categorySlug, ...product } of products) {
   await prisma.product.upsert({
-    where: { sku: product.sku },
-    create: { ...product, categoryId: categoryMap[categorySlug] },
+    where: { sellerId_sku: { sellerId: seller.id, sku: product.sku } },
+    create: { ...product, sellerId: seller.id, categoryId: categoryMap[categorySlug] },
     update: { ...product, categoryId: categoryMap[categorySlug] },
   });
 }

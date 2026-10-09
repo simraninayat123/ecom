@@ -17,6 +17,8 @@ import { ProductsModule } from './products/products.module.js';
 import ragConfig from './rag/config/rag.config.js';
 import { RagModule } from './rag/rag.module.js';
 import { UsersModule } from './users/users.module.js';
+import { TenantsModule } from './tenants/tenants.module.js';
+import { ShopsModule } from './shops/shops.module.js';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { UsersModule } from './users/users.module.js';
     CategoriesModule,
     HealthModule,
     RagModule,
+    TenantsModule,
+    ShopsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

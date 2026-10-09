@@ -139,9 +139,14 @@ export class IndexingWorkerService implements OnModuleInit, OnModuleDestroy {
     embedding: number[],
   ) {
     const vector = `[${embedding.join(',')}]`;
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { sellerId: true },
+    });
+    if (!product) return;
     await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO "ProductEmbedding" ("productId", "document", "embedding", "embeddingModel", "indexedAt", "createdAt", "updatedAt")
-      VALUES (${productId}, ${document}, ${vector}::vector, ${this.embeddingModel}, NOW(), NOW(), NOW())
+      INSERT INTO "ProductEmbedding" ("productId", "sellerId", "document", "embedding", "embeddingModel", "indexedAt", "createdAt", "updatedAt")
+      VALUES (${productId}, ${product.sellerId}, ${document}, ${vector}::vector, ${this.embeddingModel}, NOW(), NOW(), NOW())
       ON CONFLICT ("productId") DO UPDATE SET "document" = EXCLUDED."document", "embedding" = EXCLUDED."embedding", "embeddingModel" = EXCLUDED."embeddingModel", "indexedAt" = NOW(), "updatedAt" = NOW()
     `);
   }

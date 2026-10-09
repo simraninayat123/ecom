@@ -22,10 +22,11 @@ export class ProductsService {
     private readonly productIndexService: ProductIndexService,
   ) {}
 
-  async findAll(query: ProductQueryDto) {
+  async findAll(sellerId: string, query: ProductQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const where = {
+      sellerId,
       active: true,
       published: true,
       ...(query.search
@@ -81,9 +82,10 @@ export class ProductsService {
     });
   }
 
-  async findOne(idOrSlug: string) {
+  async findOne(sellerId: string, idOrSlug: string) {
     const product = await this.prisma.product.findFirst({
       where: {
+        sellerId,
         active: true,
         published: true,
         OR: [{ id: idOrSlug }, { slug: idOrSlug }],
@@ -98,8 +100,9 @@ export class ProductsService {
     return product;
   }
 
-  findAllForAdmin() {
+  findAllForAdmin(sellerId: string) {
     return this.prisma.product.findMany({
+      where: { sellerId },
       orderBy: { createdAt: 'desc' },
       include: {
         category: true,
@@ -109,26 +112,36 @@ export class ProductsService {
     });
   }
 
-  create(data: CreateProductDto) {
+  create(sellerId: string, data: CreateProductDto) {
     return this.prisma.$transaction(async (tx) => {
       const product = await tx.product.create({
-        data,
+        data: { ...data, sellerId },
         include: { category: true, images: true, variants: true },
       });
-      await this.productIndexService.enqueue(tx, product.id, 'UPSERT');
+      await this.productIndexService.enqueue(
+        tx,
+        sellerId,
+        product.id,
+        'UPSERT',
+      );
       return product;
     });
   }
 
-  async update(id: string, data: UpdateProductDto) {
+  async update(sellerId: string, id: string, data: UpdateProductDto) {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const product = await tx.product.update({
-          where: { id },
+          where: { id, sellerId },
           data,
           include: { category: true, images: true, variants: true },
         });
-        await this.productIndexService.enqueue(tx, product.id, 'UPSERT');
+        await this.productIndexService.enqueue(
+          tx,
+          sellerId,
+          product.id,
+          'UPSERT',
+        );
         return product;
       });
     } catch (error) {
@@ -137,14 +150,14 @@ export class ProductsService {
   }
 
   /** Soft delete: hides the product so existing orders and carts keep their reference. */
-  async remove(id: string) {
+  async remove(sellerId: string, id: string) {
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.product.update({
-          where: { id },
+          where: { id, sellerId },
           data: { active: false, published: false },
         });
-        await this.productIndexService.enqueue(tx, id, 'DELETE');
+        await this.productIndexService.enqueue(tx, sellerId, id, 'DELETE');
       });
       return { deleted: true };
     } catch (error) {
@@ -152,34 +165,54 @@ export class ProductsService {
     }
   }
 
-  async addImage(productId: string, data: CreateProductImageDto) {
-    await this.requireProduct(productId);
+  async addImage(
+    sellerId: string,
+    productId: string,
+    data: CreateProductImageDto,
+  ) {
+    await this.requireProduct(sellerId, productId);
     return this.prisma.productImage.create({ data: { ...data, productId } });
   }
 
-  async removeImage(productId: string, imageId: string) {
+  async removeImage(sellerId: string, productId: string, imageId: string) {
     const result = await this.prisma.productImage.deleteMany({
-      where: { id: imageId, productId },
+      where: { id: imageId, productId, product: { sellerId } },
     });
     if (!result.count) throw new NotFoundException('Product image not found');
     return { deleted: true };
   }
 
-  async addVariant(productId: string, data: CreateProductVariantDto) {
-    await this.requireProduct(productId);
+  async addVariant(
+    sellerId: string,
+    productId: string,
+    data: CreateProductVariantDto,
+  ) {
+    await this.requireProduct(sellerId, productId);
     return this.prisma.productVariant.create({ data: { ...data, productId } });
   }
 
-  async updateVariant(id: string, data: UpdateProductVariantDto) {
+  async updateVariant(
+    sellerId: string,
+    id: string,
+    data: UpdateProductVariantDto,
+  ) {
     try {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: { id, product: { sellerId } },
+      });
+      if (!variant) throw new NotFoundException('Product variant not found');
       return await this.prisma.productVariant.update({ where: { id }, data });
     } catch (error) {
       throwNotFoundOrConflict(error, 'Product variant not found');
     }
   }
 
-  async removeVariant(id: string) {
+  async removeVariant(sellerId: string, id: string) {
     try {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: { id, product: { sellerId } },
+      });
+      if (!variant) throw new NotFoundException('Product variant not found');
       await this.prisma.productVariant.delete({ where: { id } });
       return { deleted: true };
     } catch (error) {
@@ -189,12 +222,15 @@ export class ProductsService {
 
   /** Changes stock and records who changed it and why, in one transaction. */
   async adjustInventory(
+    sellerId: string,
     adminId: string,
     productId: string,
     input: AdjustInventoryDto,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({ where: { id: productId } });
+      const product = await tx.product.findFirst({
+        where: { id: productId, sellerId },
+      });
       if (!product) throw new NotFoundException('Product not found');
       const nextStock =
         input.type === 'SET'
@@ -210,6 +246,7 @@ export class ProductsService {
       return tx.inventoryAdjustment.create({
         data: {
           productId,
+          sellerId,
           createdById: adminId,
           type: input.type,
           quantity: input.quantity,
@@ -219,8 +256,10 @@ export class ProductsService {
     });
   }
 
-  private async requireProduct(id: string) {
-    const product = await this.prisma.product.findUnique({ where: { id } });
+  private async requireProduct(sellerId: string, id: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id, sellerId },
+    });
     if (!product) throw new NotFoundException('Product not found');
     return product;
   }

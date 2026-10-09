@@ -18,6 +18,13 @@ import type {
 const MAX_STEPS = 5;
 const MAX_TOOL_RESULT_CHARS = 6000;
 const MAX_CARDS = 6;
+const PRODUCT_TOOL_NAMES = new Set([
+  'search_products',
+  'get_product_details',
+  'compare_products',
+  'similar_products',
+  'list_categories',
+]);
 // The frontend appends "[Products shown: ...]" notes to history so follow-ups can refer to cards; models sometimes echo them.
 const HISTORY_NOTE = /\n*\[(?:Products|Orders) shown:[^\]]*\]/g;
 
@@ -61,6 +68,7 @@ export class AssistantService {
     message: string,
     history: ChatHistoryMessageDto[],
     userId: string | null,
+    sellerId = 'default-seller-morrow',
   ): Promise<ChatResponse> {
     const query = message.trim();
     if (!this.generation.enabled) return this.fallback(query);
@@ -71,7 +79,7 @@ export class AssistantService {
           select: { name: true },
         })
       : null;
-    const context: ToolContext = { userId: shopper ? userId : null };
+    const context: ToolContext = { userId: shopper ? userId : null, sellerId };
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt(shopper?.name ?? null) },
       ...history.map((entry) => ({ role: entry.role, content: entry.content })),
@@ -86,9 +94,15 @@ export class AssistantService {
       try {
         // The first step must look something up, so answers never come from memory of earlier turns;
         // on the last step tools are withheld so the model has to answer.
+        const availableTools =
+          step === 0 && this.isProductQuery(query)
+            ? ASSISTANT_TOOLS.filter((tool) =>
+                PRODUCT_TOOL_NAMES.has(tool.function.name),
+              )
+            : ASSISTANT_TOOLS;
         completion = await this.generation.complete(
           messages,
-          step < MAX_STEPS - 1 ? ASSISTANT_TOOLS : undefined,
+          step < MAX_STEPS - 1 ? availableTools : undefined,
           step === 0 ? 'required' : 'auto',
         );
       } catch (error) {
@@ -192,6 +206,16 @@ export class AssistantService {
     } catch {
       return {};
     }
+  }
+
+  private isProductQuery(query: string) {
+    const normalized = query.toLowerCase();
+    const orderTerms = ['order', 'delivery', 'shipped', 'tracking', 'refund'];
+    const cartTerms = ['cart', 'basket', 'checkout'];
+    return (
+      !orderTerms.some((term) => normalized.includes(term)) &&
+      !cartTerms.some((term) => normalized.includes(term))
+    );
   }
 
   /** Without a working LLM, the assistant still answers product questions through plain retrieval. */

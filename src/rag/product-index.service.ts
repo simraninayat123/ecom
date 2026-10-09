@@ -52,12 +52,13 @@ export class ProductIndexService {
 
   enqueue(
     tx: Prisma.TransactionClient,
+    sellerId: string,
     productId: string,
     operation: ProductIndexOperation,
   ) {
     return tx.productIndexJob.upsert({
       where: { productId },
-      create: { productId, operation, status: 'PENDING' },
+      create: { sellerId, productId, operation, status: 'PENDING' },
       update: {
         operation,
         status: 'PENDING',
@@ -87,8 +88,10 @@ export class ProductIndexService {
       select: { id: true },
     });
     await this.prisma.$transaction(async (tx) => {
-      for (const product of products)
-        await this.enqueue(tx, product.id, 'UPSERT');
+      for (const product of products) {
+        const full = await tx.product.findUnique({ where: { id: product.id } });
+        if (full) await this.enqueue(tx, full.sellerId, product.id, 'UPSERT');
+      }
     });
     return { enqueued: products.length };
   }

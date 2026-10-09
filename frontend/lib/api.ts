@@ -9,6 +9,7 @@ export type Product = {
   stock: number;
   category?: { name: string; slug: string } | null;
 };
+export type Shop = { id: string; name: string; slug: string; _count?: { products: number }; products?: Array<{ imageUrl: string }> };
 
 export type CartItem = {
   id: string;
@@ -114,6 +115,13 @@ export class ApiError extends Error {
   }
 }
 
+export const SELLER_SLUG_KEY = 'morrow_seller_slug';
+export const SELLER_NAME_KEY = 'morrow_seller_name';
+
+export function getActiveSellerName() {
+  return typeof window === 'undefined' ? 'Morrow Supply' : localStorage.getItem(SELLER_NAME_KEY) ?? 'Morrow Supply';
+}
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export function formatMoney(amount: number, currency = 'INR') {
@@ -121,9 +129,10 @@ export function formatMoney(amount: number, currency = 'INR') {
 }
 
 export async function api<T>(path: string, options: RequestInit = {}, token?: string | null): Promise<T> {
+  const sellerSlug = typeof window === 'undefined' ? 'morrow' : localStorage.getItem(SELLER_SLUG_KEY) ?? 'morrow';
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
+    headers: { 'Content-Type': 'application/json', 'X-Seller-Slug': sellerSlug, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
   });
   const body = (await response.json().catch(() => null)) as ApiResponse<T> | null;
   if (!response.ok || !body?.success) {
@@ -140,6 +149,9 @@ export async function adminApi<T>(path: string, options: RequestInit = {}): Prom
 export async function getProducts() {
   return api<Product[]>('/products?limit=24');
 }
+export function getShops() { return api<Shop[]>('/shops'); }
+export function getShopProducts(slug: string) { return api<Product[]>(`/shops/${encodeURIComponent(slug)}/products`); }
+export function getShopProduct(slug: string, idOrSlug: string) { return api<{ shop: Shop; product: Product }>(`/shops/${encodeURIComponent(slug)}/products/${encodeURIComponent(idOrSlug)}`); }
 
 /** Sends the stored access token when present so the assistant can use order and cart tools. */
 export function sendAssistantMessage(message: string, history: AssistantHistoryMessage[]) {

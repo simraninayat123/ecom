@@ -3,6 +3,7 @@ import { AuthService } from './auth.service.js';
 import { AuthLoginDto } from './dto/auth-login.dto.js';
 import { AuthRegisterDto } from './dto/auth-register.dto.js';
 import { ResponseMessage } from '../utils/response-message.decorator.js';
+import { SellerOnboardingDto } from './dto/seller-onboarding.dto.js';
 
 @Controller('auth')
 export class AuthController {
@@ -19,5 +20,11 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   login(@Body() body: AuthLoginDto) {
     return this.authService.login(body);
+  }
+
+  @Post('seller-onboarding')
+  @ResponseMessage('Seller created successfully')
+  onboardSeller(@Body() body: SellerOnboardingDto) {
+    return this.authService.onboardSeller(body);
   }
 }
